@@ -60,8 +60,8 @@ df_lorenz = generate_lorenz_data(sigma, rho, beta, t_max, num_points)
 # Layout for Data Visualization
 col1, col2 = st.columns(2)
 
-with col1:
-    if st.button("Generate Lorenz attractor (X vs. Y) graph"):
+if st.button("Generate Lorenz attractor graph and time series (X vs. Y)"):
+    with col1:
         st.subheader("Lorenz Attractor (X vs Y)")
         fig1, ax1 = plt.subplots(figsize=(6, 4))
         ax1.plot(df_lorenz['X'], df_lorenz['Y'], lw=0.5, color='royalblue')
@@ -70,8 +70,7 @@ with col1:
         ax1.set_title("Phase Space")
         st.pyplot(fig1)
 
-with col2:
-    if st.button("Generate time series data (X vs. Y)"):
+    with col2:
         st.subheader("Time Series (X and Y)")
         fig2, ax2 = plt.subplots(figsize=(6, 4))
         ax2.plot(df_lorenz['Time'][:500], df_lorenz['X'][:500], label="X", lw=1)
