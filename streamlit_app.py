@@ -1,151 +1,129 @@
 import streamlit as st
 import pandas as pd
-import math
-from pathlib import Path
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.integrate import solve_ivp
+import pyEDM
 
-# Set the title and favicon that appear in the Browser's tab bar.
-st.set_page_config(
-    page_title='GDP dashboard',
-    page_icon=':earth_americas:', # This is an emoji shortcode. Could be a URL too.
-)
+# --- Page Configuration ---
+st.set_page_config(page_title="Lorenz Attractor CCM", layout="wide")
 
-# -----------------------------------------------------------------------------
-# Declare some useful functions.
-
+# --- Functions ---
 @st.cache_data
-def get_gdp_data():
-    """Grab GDP data from a CSV file.
+def generate_lorenz_data(sigma, rho, beta, t_max, num_points):
+    """Generates time series data for the Lorenz attractor."""
+    def lorenz_system(t, state):
+        x, y, z = state
+        return [sigma * (y - x), x * (rho - z) - y, x * y - beta * z]
 
-    This uses caching to avoid having to read the file every time. If we were
-    reading from an HTTP endpoint instead of a file, it's a good idea to set
-    a maximum age to the cache with the TTL argument: @st.cache_data(ttl='1d')
-    """
+    # Initial conditions
+    initial_state = [1.0, 1.0, 1.0]
+    t_eval = np.linspace(0, t_max, num_points)
+    
+    # Solve the differential equations
+    solution = solve_ivp(lorenz_system, [0, t_max], initial_state, t_eval=t_eval)
+    
+    # Create DataFrame suitable for pyEDM
+    df = pd.DataFrame({
+        'Time': np.arange(1, num_points + 1),
+        'X': solution.y[0],
+        'Y': solution.y[1],
+        'Z': solution.y[2]
+    })
+    return df
 
-    # Instead of a CSV on disk, you could read from an HTTP endpoint here too.
-    DATA_FILENAME = Path(__file__).parent/'data/gdp_data.csv'
-    raw_gdp_df = pd.read_csv(DATA_FILENAME)
+# --- Sidebar UI ---
+st.sidebar.title("Configuration")
 
-    MIN_YEAR = 1960
-    MAX_YEAR = 2022
+st.sidebar.header("Lorenz Parameters")
+sigma = st.sidebar.slider("Sigma (σ)", 1.0, 20.0, 10.0)
+rho = st.sidebar.slider("Rho (ρ)", 10.0, 40.0, 28.0)
+beta = st.sidebar.slider("Beta (β)", 1.0, 5.0, 2.666)
 
-    # The data above has columns like:
-    # - Country Name
-    # - Country Code
-    # - [Stuff I don't care about]
-    # - GDP for 1960
-    # - GDP for 1961
-    # - GDP for 1962
-    # - ...
-    # - GDP for 2022
-    #
-    # ...but I want this instead:
-    # - Country Name
-    # - Country Code
-    # - Year
-    # - GDP
-    #
-    # So let's pivot all those year-columns into two: Year and GDP
-    gdp_df = raw_gdp_df.melt(
-        ['Country Code'],
-        [str(x) for x in range(MIN_YEAR, MAX_YEAR + 1)],
-        'Year',
-        'GDP',
-    )
+st.sidebar.header("Simulation Settings")
+num_points = st.sidebar.number_input("Number of Data Points", 500, 5000, 2000, step=100)
+t_max = st.sidebar.number_input("Max Time (t)", 10.0, 100.0, 40.0)
 
-    # Convert years from string to integers
-    gdp_df['Year'] = pd.to_numeric(gdp_df['Year'])
+st.sidebar.header("CCM Parameters")
+E = st.sidebar.slider("Embedding Dimension (E)", 2, 10, 3)
+max_lib_size = st.sidebar.slider("Max Library Size", 100, num_points, 500, step=100)
+lib_step = st.sidebar.number_input("Library Step Size", 10, 200, 20)
 
-    return gdp_df
+# --- Main Application ---
+st.title("Convergent Cross Mapping (CCM) on the Lorenz Attractor")
+st.markdown("""
+This application generates data from the classic **Lorenz system** and uses Sugihara Lab's `pyEDM` to perform **Convergent Cross Mapping**. 
+Because variables $X$, $Y$, and $Z$ are dynamically coupled in the Lorenz equations, they should be able to cross-map one another (e.g., historical states of $X$ can reliably predict $Y$, and vice versa).
+""")
 
-gdp_df = get_gdp_data()
+# Generate Data
+df_lorenz = generate_lorenz_data(sigma, rho, beta, t_max, num_points)
 
-# -----------------------------------------------------------------------------
-# Draw the actual page
+# Layout for Data Visualization
+col1, col2 = st.columns(2)
 
-# Set the title that appears at the top of the page.
-'''
-# :earth_americas: GDP dashboard
+with col1:
+    st.subheader("Lorenz Attractor (X vs Y)")
+    fig1, ax1 = plt.subplots(figsize=(6, 4))
+    ax1.plot(df_lorenz['X'], df_lorenz['Y'], lw=0.5, color='royalblue')
+    ax1.set_xlabel("X")
+    ax1.set_ylabel("Y")
+    ax1.set_title("Phase Space")
+    st.pyplot(fig1)
 
-Browse GDP data from the [World Bank Open Data](https://data.worldbank.org/) website. As you'll
-notice, the data only goes to 2022 right now, and datapoints for certain years are often missing.
-But it's otherwise a great (and did I mention _free_?) source of data.
-'''
+with col2:
+    st.subheader("Time Series (X and Y)")
+    fig2, ax2 = plt.subplots(figsize=(6, 4))
+    ax2.plot(df_lorenz['Time'][:500], df_lorenz['X'][:500], label="X", lw=1)
+    ax2.plot(df_lorenz['Time'][:500], df_lorenz['Y'][:500], label="Y", lw=1)
+    ax2.set_xlabel("Time (Index)")
+    ax2.set_ylabel("Value")
+    ax2.set_title("First 500 Points")
+    ax2.legend()
+    st.pyplot(fig2)
 
-# Add some spacing
-''
-''
+# --- pyEDM CCM Execution ---
+st.markdown("---")
+st.subheader("CCM Analysis: X and Y Coupling")
 
-min_value = gdp_df['Year'].min()
-max_value = gdp_df['Year'].max()
-
-from_year, to_year = st.slider(
-    'Which years are you interested in?',
-    min_value=min_value,
-    max_value=max_value,
-    value=[min_value, max_value])
-
-countries = gdp_df['Country Code'].unique()
-
-if not len(countries):
-    st.warning("Select at least one country")
-
-selected_countries = st.multiselect(
-    'Which countries would you like to view?',
-    countries,
-    ['DEU', 'FRA', 'GBR', 'BRA', 'MEX', 'JPN'])
-
-''
-''
-''
-
-# Filter the data
-filtered_gdp_df = gdp_df[
-    (gdp_df['Country Code'].isin(selected_countries))
-    & (gdp_df['Year'] <= to_year)
-    & (from_year <= gdp_df['Year'])
-]
-
-st.header('GDP over time', divider='gray')
-
-''
-
-st.line_chart(
-    filtered_gdp_df,
-    x='Year',
-    y='GDP',
-    color='Country Code',
-)
-
-''
-''
-
-
-first_year = gdp_df[gdp_df['Year'] == from_year]
-last_year = gdp_df[gdp_df['Year'] == to_year]
-
-st.header(f'GDP in {to_year}', divider='gray')
-
-''
-
-cols = st.columns(4)
-
-for i, country in enumerate(selected_countries):
-    col = cols[i % len(cols)]
-
-    with col:
-        first_gdp = first_year[first_year['Country Code'] == country]['GDP'].iat[0] / 1000000000
-        last_gdp = last_year[last_year['Country Code'] == country]['GDP'].iat[0] / 1000000000
-
-        if math.isnan(first_gdp):
-            growth = 'n/a'
-            delta_color = 'off'
-        else:
-            growth = f'{last_gdp / first_gdp:,.2f}x'
-            delta_color = 'normal'
-
-        st.metric(
-            label=f'{country} GDP',
-            value=f'{last_gdp:,.0f}B',
-            delta=growth,
-            delta_color=delta_color
+if st.button("Run CCM Analysis"):
+    with st.spinner("Running Convergent Cross Mapping via pyEDM..."):
+        # Format library sizes for pyEDM: "start stop step"
+        lib_sizes_str = f"10 {max_lib_size} {lib_step}"
+        
+        # Run CCM (X cross-maps Y, Y cross-maps X)
+        # pyEDM.CCM returns a DataFrame containing the correlation coefficient (rho) for each library size
+        ccm_result = pyEDM.CCM(
+            dataFrame=df_lorenz,
+            E=E,
+            columns="X", 
+            target="Y", 
+            libSizes=lib_sizes_str, 
+            sample=100,      # Number of random library samples to draw
+            showPlot=False   # We will plot it manually in Streamlit
         )
+        
+        # Plotting the CCM results
+        fig3, ax3 = plt.subplots(figsize=(8, 5))
+        
+        # Depending on pyEDM versions, column names are generally formatted as 'X:Y' and 'Y:X'
+        # 'X:Y' means X cross-maps Y (predicting Y using historical library of X) -> tests if Y causes X
+        if 'X:Y' in ccm_result.columns and 'Y:X' in ccm_result.columns:
+            ax3.plot(ccm_result['LibSize'], ccm_result['X:Y'], marker='o', label='X cross-maps Y (Y causes X)')
+            ax3.plot(ccm_result['LibSize'], ccm_result['Y:X'], marker='s', label='Y cross-maps X (X causes Y)')
+        else:
+            # Fallback if column names differ
+            for col in ccm_result.columns:
+                if col != 'LibSize':
+                    ax3.plot(ccm_result['LibSize'], ccm_result[col], marker='o', label=col)
+                    
+        ax3.set_xlabel("Library Size (L)")
+        ax3.set_ylabel("Correlation (ρ)")
+        ax3.set_title(f"CCM Skill vs Library Size (E={E})")
+        ax3.legend()
+        ax3.grid(True, linestyle='--', alpha=0.7)
+        ax3.set_ylim([-0.1, 1.1])
+        
+        st.pyplot(fig3)
+        
+        st.success("Analysis complete! As $L$ increases, the correlation $\\rho$ should converge towards 1.0, indicating strong bidirectional causation.")
