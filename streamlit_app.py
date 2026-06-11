@@ -118,7 +118,7 @@ if st.button("Run CCM Analysis"):
                     
         ax3.set_xlabel("Library Size (L)")
         ax3.set_ylabel("Correlation (ρ)")
-        ax3.set_title(f"Correlation vs Library Size (E={E})")
+        ax3.set_title(f"Correlation vs. Library Size")
         ax3.legend()
         ax3.grid(True, linestyle='--', alpha=0.7)
         ax3.set_ylim([-0.1, 1.1])
