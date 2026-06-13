@@ -67,17 +67,17 @@ if st.button("Generate Lorenz attractor graph and time series (X vs. Y)"):
         ax1.plot(df_lorenz['X'], df_lorenz['Y'], lw=0.5, color='royalblue')
         ax1.set_xlabel("X")
         ax1.set_ylabel("Y")
-        ax1.set_title("Phase Space")
+        ax1.set_title("Lorenz Attractor Projection")
         st.pyplot(fig1)
 
     with col2:
         st.subheader("Time Series (X and Y)")
         fig2, ax2 = plt.subplots(figsize=(6, 4))
-        ax2.plot(df_lorenz['Time'][:500], df_lorenz['X'][:500], label="X", lw=1)
-        ax2.plot(df_lorenz['Time'][:500], df_lorenz['Y'][:500], label="Y", lw=1)
+        ax2.plot(df_lorenz['Time'][:num_points], df_lorenz['X'][:num_points], label="X", lw=1)
+        ax2.plot(df_lorenz['Time'][:num_points], df_lorenz['Y'][:num_points], label="Y", lw=1)
         ax2.set_xlabel("Time (Index)")
         ax2.set_ylabel("Value")
-        ax2.set_title("First 500 Points")
+        ax2.set_title("Time Series Data")
         ax2.legend()
         st.pyplot(fig2)
 
@@ -120,12 +120,10 @@ if st.button("Run CCM Analysis"):
         ax3.set_ylim([-0.1, 1.1])
         
         st.pyplot(fig3)
-        st.success("Analysis complete! As $L$ increases, the correlation $\\rho$ should converge towards 1.0, indicating strong bidirectional causation.")
 
         # --- Prediction Performance Visualization using Simplex ---
         st.markdown("---")
-        st.subheader("Prediction Performance Visualization")
-        st.markdown(f"Using the maximum library size (**L = {max_lib_size}**), we extract the predicted values to see how well the shadow manifolds reconstruct their target variables.")
+        st.subheader("Prediction Performance")
 
         # 1. Extract Predictions: X's history predicting Y
         simplex_XY = pyEDM.Simplex(
@@ -149,68 +147,35 @@ if st.button("Run CCM Analysis"):
 
         # --- Plotting X cross-maps Y ---
         st.markdown("### 1. Predicting Y from X's History")
-        col3, col4 = st.columns(2)
-        
-        with col3:
-            fig4, ax4 = plt.subplots(figsize=(5, 5))
-            ax4.scatter(simplex_XY['Observations'], simplex_XY['Predictions'], alpha=0.5, s=10, color='purple')
-            
-            min_val = min(simplex_XY['Observations'].min(), simplex_XY['Predictions'].min())
-            max_val = max(simplex_XY['Observations'].max(), simplex_XY['Predictions'].max())
-            ax4.plot([min_val, max_val], [min_val, max_val], 'k--', lw=2, label="Perfect Prediction")
-            
-            ax4.set_xlabel("True Observed Y")
-            ax4.set_ylabel("Predicted Y (from X)")
-            ax4.set_title(f"X -> Y Accuracy (L={max_lib_size})")
-            ax4.legend()
-            ax4.grid(True, alpha=0.3)
-            st.pyplot(fig4)
 
-        with col4:
-            fig5, ax5 = plt.subplots(figsize=(6, 4))
-            plot_slice = 150 
-            time_idx = np.arange(len(simplex_XY))[:plot_slice]
-            
-            ax5.plot(time_idx, simplex_XY['Observations'].iloc[:plot_slice], label="True Y", color='black', lw=2)
-            ax5.plot(time_idx, simplex_XY['Predictions'].iloc[:plot_slice], label="Predicted Y", color='orange', linestyle='--', lw=2)
-            
-            ax5.set_xlabel("Time Step")
-            ax5.set_ylabel("Value of Y")
-            ax5.set_title("X -> Y Tracking")
-            ax5.legend()
-            ax5.grid(True, alpha=0.3)
-            st.pyplot(fig5)
+        fig4, ax4 = plt.subplots(figsize=(5, 5))
+        ax4.scatter(simplex_XY['Observations'], simplex_XY['Predictions'], alpha=0.5, s=10, color='purple')
+        
+        min_val = min(simplex_XY['Observations'].min(), simplex_XY['Predictions'].min())
+        max_val = max(simplex_XY['Observations'].max(), simplex_XY['Predictions'].max())
+        ax4.plot([min_val, max_val], [min_val, max_val], 'k--', lw=2, label="Perfect Prediction")
+        
+        ax4.set_xlabel("True Observed Y")
+        ax4.set_ylabel("Predicted Y (from X)")
+        ax4.set_title(f"X -> Y Accuracy (L={max_lib_size})")
+        ax4.legend()
+        ax4.grid(True, alpha=0.3)
+        st.pyplot(fig4)
+
 
         # --- Plotting Y cross-maps X ---
         st.markdown("### 2. Predicting X from Y's History")
-        col5, col6 = st.columns(2)
+        fig6, ax6 = plt.subplots(figsize=(5, 5))
+        ax6.scatter(simplex_YX['Observations'], simplex_YX['Predictions'], alpha=0.5, s=10, color='teal')
+        
+        min_val = min(simplex_YX['Observations'].min(), simplex_YX['Predictions'].min())
+        max_val = max(simplex_YX['Observations'].max(), simplex_YX['Predictions'].max())
+        ax6.plot([min_val, max_val], [min_val, max_val], 'k--', lw=2, label="Perfect Prediction")
+        
+        ax6.set_xlabel("True Observed X")
+        ax6.set_ylabel("Predicted X (from Y)")
+        ax6.set_title(f"Y -> X Accuracy (L={max_lib_size})")
+        ax6.legend()
+        ax6.grid(True, alpha=0.3)
+        st.pyplot(fig6)
 
-        with col5:
-            fig6, ax6 = plt.subplots(figsize=(5, 5))
-            ax6.scatter(simplex_YX['Observations'], simplex_YX['Predictions'], alpha=0.5, s=10, color='teal')
-            
-            min_val = min(simplex_YX['Observations'].min(), simplex_YX['Predictions'].min())
-            max_val = max(simplex_YX['Observations'].max(), simplex_YX['Predictions'].max())
-            ax6.plot([min_val, max_val], [min_val, max_val], 'k--', lw=2, label="Perfect Prediction")
-            
-            ax6.set_xlabel("True Observed X")
-            ax6.set_ylabel("Predicted X (from Y)")
-            ax6.set_title(f"Y -> X Accuracy (L={max_lib_size})")
-            ax6.legend()
-            ax6.grid(True, alpha=0.3)
-            st.pyplot(fig6)
-
-        with col6:
-            fig7, ax7 = plt.subplots(figsize=(6, 4))
-            plot_slice = 150 
-            time_idx = np.arange(len(simplex_YX))[:plot_slice]
-            
-            ax7.plot(time_idx, simplex_YX['Observations'].iloc[:plot_slice], label="True X", color='black', lw=2)
-            ax7.plot(time_idx, simplex_YX['Predictions'].iloc[:plot_slice], label="Predicted X", color='mediumseagreen', linestyle='--', lw=2)
-            
-            ax7.set_xlabel("Time Step")
-            ax7.set_ylabel("Value of X")
-            ax7.set_title("Y -> X Tracking")
-            ax7.legend()
-            ax7.grid(True, alpha=0.3)
-            st.pyplot(fig7)
