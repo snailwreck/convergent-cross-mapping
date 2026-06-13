@@ -50,9 +50,9 @@ lib_step = st.sidebar.number_input("Library Step Size", 10, 200, 20)
 
 # --- Main Application ---
 st.title("Convergent Cross Mapping (CCM) on the Lorenz Attractor")
-st.write("dx/dt = σ(y-x)")
-st.write("dy/dt = x(ρ-z)-y")
-st.write("dz/dt = xy-βz")
+st.markdown(r"$$ \frac{dx}{dt} = \sigma(y-x) $$")
+st.markdown(r"$$ \frac{dy}{dt} = x(\rho-z)-y $$")
+st.markdown(r"$$ \frac{dz}{dt} = xy-\beta z $$")
 
 # Generate Data
 df_lorenz = generate_lorenz_data(sigma, rho, beta, t_max, num_points)
@@ -91,38 +91,93 @@ if st.button("Run CCM Analysis"):
         lib_sizes_str = f"10 {max_lib_size} {lib_step}"
         
         # Run CCM (X cross-maps Y, Y cross-maps X)
-        # pyEDM.CCM returns a DataFrame containing the correlation coefficient (rho) for each library size
         ccm_result = pyEDM.CCM(
             dataFrame=df_lorenz,
             E=3,
             columns="X", 
             target="Y", 
             libSizes=lib_sizes_str, 
-            sample=100,      # Number of random library samples to draw
-            showPlot=False   # We will plot it manually in Streamlit
+            sample=100,      
+            showPlot=False   
         )
         
         # Plotting the CCM results
         fig3, ax3 = plt.subplots(figsize=(8, 5))
         
-        # Depending on pyEDM versions, column names are generally formatted as 'X:Y' and 'Y:X'
-        # 'X:Y' means X cross-maps Y (predicting Y using historical library of X) -> tests if Y causes X
         if 'X:Y' in ccm_result.columns and 'Y:X' in ccm_result.columns:
             ax3.plot(ccm_result['LibSize'], ccm_result['X:Y'], marker='o', label='X cross-maps Y (Y causes X)')
             ax3.plot(ccm_result['LibSize'], ccm_result['Y:X'], marker='s', label='Y cross-maps X (X causes Y)')
         else:
-            # Fallback if column names differ
             for col in ccm_result.columns:
                 if col != 'LibSize':
                     ax3.plot(ccm_result['LibSize'], ccm_result[col], marker='o', label=col)
                     
         ax3.set_xlabel("Library Size (L)")
         ax3.set_ylabel("Correlation (ρ)")
-        ax3.set_title(f"Correlation vs. Library Size")
+        ax3.set_title("Correlation vs. Library Size")
         ax3.legend()
         ax3.grid(True, linestyle='--', alpha=0.7)
         ax3.set_ylim([-0.1, 1.1])
         
         st.pyplot(fig3)
-        
         st.success("Analysis complete! As $L$ increases, the correlation $\\rho$ should converge towards 1.0, indicating strong bidirectional causation.")
+
+        # --- Prediction Performance Visualization using Simplex ---
+        st.markdown("---")
+        st.subheader("Prediction Performance Visualization")
+        st.markdown(f"Using the maximum library size (**L = {max_lib_size}**), we extract the predicted values to see how well the shadow manifold of $X$ reconstructs $Y$.")
+
+        # Extract Raw Predictions using Simplex
+        simplex_result = pyEDM.Simplex(
+            dataFrame=df_lorenz,
+            lib=f"1 {max_lib_size}",
+            pred=f"1 {max_lib_size}",
+            E=3,
+            columns="X",
+            target="Y"
+        )
+        
+        # Drop NaNs resulting from time-lag embedding
+        simplex_result = simplex_result.dropna()
+
+        col3, col4 = st.columns(2)
+        
+        with col3:
+            st.markdown("**Observed vs. Predicted**")
+            fig4, ax4 = plt.subplots(figsize=(5, 5))
+            
+            # Scatter plot of predictions vs true values
+            ax4.scatter(simplex_result['Observations'], simplex_result['Predictions'], 
+                        alpha=0.5, s=10, color='purple')
+            
+            # Perfect prediction reference line (y=x)
+            min_val = min(simplex_result['Observations'].min(), simplex_result['Predictions'].min())
+            max_val = max(simplex_result['Observations'].max(), simplex_result['Predictions'].max())
+            ax4.plot([min_val, max_val], [min_val, max_val], 'k--', lw=2, label="Perfect Prediction (y=x)")
+            
+            ax4.set_xlabel("True Observed Y")
+            ax4.set_ylabel("Predicted Y (from X's history)")
+            ax4.set_title(f"Accuracy (L={max_lib_size})")
+            ax4.legend()
+            ax4.grid(True, alpha=0.3)
+            st.pyplot(fig4)
+
+        with col4:
+            st.markdown("**Time Series Tracking**")
+            fig5, ax5 = plt.subplots(figsize=(6, 4))
+            
+            # Time series overlay (first 150 points for visibility)
+            plot_slice = 150 
+            time_idx = np.arange(len(simplex_result))[:plot_slice]
+            
+            ax5.plot(time_idx, simplex_result['Observations'].iloc[:plot_slice], 
+                     label="True Y", color='black', lw=2)
+            ax5.plot(time_idx, simplex_result['Predictions'].iloc[:plot_slice], 
+                     label="Predicted Y", color='orange', linestyle='--', lw=2)
+            
+            ax5.set_xlabel("Time Step")
+            ax5.set_ylabel("Value of Y")
+            ax5.set_title("First 150 Predictions")
+            ax5.legend()
+            ax5.grid(True, alpha=0.3)
+            st.pyplot(fig5)
