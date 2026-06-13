@@ -125,59 +125,92 @@ if st.button("Run CCM Analysis"):
         # --- Prediction Performance Visualization using Simplex ---
         st.markdown("---")
         st.subheader("Prediction Performance Visualization")
-        st.markdown(f"Using the maximum library size (**L = {max_lib_size}**), we extract the predicted values to see how well the shadow manifold of $X$ reconstructs $Y$.")
+        st.markdown(f"Using the maximum library size (**L = {max_lib_size}**), we extract the predicted values to see how well the shadow manifolds reconstruct their target variables.")
 
-        # Extract Raw Predictions using Simplex
-        simplex_result = pyEDM.Simplex(
+        # 1. Extract Predictions: X's history predicting Y
+        simplex_XY = pyEDM.Simplex(
             dataFrame=df_lorenz,
             lib=f"1 {max_lib_size}",
             pred=f"1 {max_lib_size}",
             E=3,
             columns="X",
             target="Y"
-        )
-        
-        # Drop NaNs resulting from time-lag embedding
-        simplex_result = simplex_result.dropna()
+        ).dropna()
 
+        # 2. Extract Predictions: Y's history predicting X (The Reverse Direction)
+        simplex_YX = pyEDM.Simplex(
+            dataFrame=df_lorenz,
+            lib=f"1 {max_lib_size}",
+            pred=f"1 {max_lib_size}",
+            E=3,
+            columns="Y",
+            target="X"
+        ).dropna()
+
+        # --- Plotting X cross-maps Y ---
+        st.markdown("### 1. Predicting Y from X's History")
         col3, col4 = st.columns(2)
         
         with col3:
-            st.markdown("**Observed vs. Predicted**")
             fig4, ax4 = plt.subplots(figsize=(5, 5))
+            ax4.scatter(simplex_XY['Observations'], simplex_XY['Predictions'], alpha=0.5, s=10, color='purple')
             
-            # Scatter plot of predictions vs true values
-            ax4.scatter(simplex_result['Observations'], simplex_result['Predictions'], 
-                        alpha=0.5, s=10, color='purple')
-            
-            # Perfect prediction reference line (y=x)
-            min_val = min(simplex_result['Observations'].min(), simplex_result['Predictions'].min())
-            max_val = max(simplex_result['Observations'].max(), simplex_result['Predictions'].max())
-            ax4.plot([min_val, max_val], [min_val, max_val], 'k--', lw=2, label="Perfect Prediction (y=x)")
+            min_val = min(simplex_XY['Observations'].min(), simplex_XY['Predictions'].min())
+            max_val = max(simplex_XY['Observations'].max(), simplex_XY['Predictions'].max())
+            ax4.plot([min_val, max_val], [min_val, max_val], 'k--', lw=2, label="Perfect Prediction")
             
             ax4.set_xlabel("True Observed Y")
-            ax4.set_ylabel("Predicted Y (from X's history)")
-            ax4.set_title(f"Accuracy (L={max_lib_size})")
+            ax4.set_ylabel("Predicted Y (from X)")
+            ax4.set_title(f"X -> Y Accuracy (L={max_lib_size})")
             ax4.legend()
             ax4.grid(True, alpha=0.3)
             st.pyplot(fig4)
 
         with col4:
-            st.markdown("**Time Series Tracking**")
             fig5, ax5 = plt.subplots(figsize=(6, 4))
-            
-            # Time series overlay (first 150 points for visibility)
             plot_slice = 150 
-            time_idx = np.arange(len(simplex_result))[:plot_slice]
+            time_idx = np.arange(len(simplex_XY))[:plot_slice]
             
-            ax5.plot(time_idx, simplex_result['Observations'].iloc[:plot_slice], 
-                     label="True Y", color='black', lw=2)
-            ax5.plot(time_idx, simplex_result['Predictions'].iloc[:plot_slice], 
-                     label="Predicted Y", color='orange', linestyle='--', lw=2)
+            ax5.plot(time_idx, simplex_XY['Observations'].iloc[:plot_slice], label="True Y", color='black', lw=2)
+            ax5.plot(time_idx, simplex_XY['Predictions'].iloc[:plot_slice], label="Predicted Y", color='orange', linestyle='--', lw=2)
             
             ax5.set_xlabel("Time Step")
             ax5.set_ylabel("Value of Y")
-            ax5.set_title("First 150 Predictions")
+            ax5.set_title("X -> Y Tracking")
             ax5.legend()
             ax5.grid(True, alpha=0.3)
             st.pyplot(fig5)
+
+        # --- Plotting Y cross-maps X ---
+        st.markdown("### 2. Predicting X from Y's History")
+        col5, col6 = st.columns(2)
+
+        with col5:
+            fig6, ax6 = plt.subplots(figsize=(5, 5))
+            ax6.scatter(simplex_YX['Observations'], simplex_YX['Predictions'], alpha=0.5, s=10, color='teal')
+            
+            min_val = min(simplex_YX['Observations'].min(), simplex_YX['Predictions'].min())
+            max_val = max(simplex_YX['Observations'].max(), simplex_YX['Predictions'].max())
+            ax6.plot([min_val, max_val], [min_val, max_val], 'k--', lw=2, label="Perfect Prediction")
+            
+            ax6.set_xlabel("True Observed X")
+            ax6.set_ylabel("Predicted X (from Y)")
+            ax6.set_title(f"Y -> X Accuracy (L={max_lib_size})")
+            ax6.legend()
+            ax6.grid(True, alpha=0.3)
+            st.pyplot(fig6)
+
+        with col6:
+            fig7, ax7 = plt.subplots(figsize=(6, 4))
+            plot_slice = 150 
+            time_idx = np.arange(len(simplex_YX))[:plot_slice]
+            
+            ax7.plot(time_idx, simplex_YX['Observations'].iloc[:plot_slice], label="True X", color='black', lw=2)
+            ax7.plot(time_idx, simplex_YX['Predictions'].iloc[:plot_slice], label="Predicted X", color='mediumseagreen', linestyle='--', lw=2)
+            
+            ax7.set_xlabel("Time Step")
+            ax7.set_ylabel("Value of X")
+            ax7.set_title("Y -> X Tracking")
+            ax7.legend()
+            ax7.grid(True, alpha=0.3)
+            st.pyplot(fig7)
