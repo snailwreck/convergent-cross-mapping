@@ -82,7 +82,9 @@ tab1, tab2 = st.tabs(["Lorenz Attractor (Continuous)", "Coupled Logistic Map (Di
 # ==========================================
 with tab1:
     st.header("Lorenz Attractor")
-    st.markdown(r"$$ \frac{dx}{dt} = \sigma(y-x) \quad|\quad \frac{dy}{dt} = x(\rho-z)-y \quad|\quad \frac{dz}{dt} = xy-\beta z $$")
+    st.markdown(r"$$ \frac{dx}{dt} = \sigma(y-x)$$")
+    st.markdown(r"$$\frac{dy}{dt} = x(\rho-z)-y $$")
+    st.mardkwon(r"$$\frac{dz}{dt} = xy-\beta z $$")
 
     df_lorenz = generate_lorenz_data(sigma, rho, beta, t_max, num_points)
 
@@ -173,7 +175,8 @@ with tab1:
 # ==========================================
 with tab2:
     st.header("Coupled Logistic Map")
-    st.markdown(r"$$ X_{t+1} = X_t [r_x - r_x X_t - \beta_{xy} Y_t] \quad|\quad Y_{t+1} = Y_t [r_y - r_y Y_t - \beta_{yx} X_t] $$")
+    st.markdown(r"$$ X_{t+1} = X_t [r_x - r_x X_t - \beta_{xy} Y_t]$$"} 
+    st.markdown(r"$$Y_{t+1} = Y_t [r_y - r_y Y_t - \beta_{yx} X_t] $$")
 
     df_map = generate_logistic_data(rx, ry, beta_xy, beta_yx, num_points)
 
