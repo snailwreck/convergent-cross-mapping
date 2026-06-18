@@ -84,7 +84,7 @@ with tab1:
     st.header("Lorenz Attractor")
     st.markdown(r"$$ \frac{dx}{dt} = \sigma(y-x)$$")
     st.markdown(r"$$\frac{dy}{dt} = x(\rho-z)-y $$")
-    st.markdwon(r"$$\frac{dz}{dt} = xy-\beta z $$")
+    st.markdown(r"$$\frac{dz}{dt} = xy-\beta z $$")
 
     df_lorenz = generate_lorenz_data(sigma, rho, beta, t_max, num_points)
 
