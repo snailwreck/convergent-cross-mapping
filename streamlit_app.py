@@ -56,16 +56,16 @@ def generate_logistic_data(rx, ry, beta_xy, beta_yx, num_points):
 st.sidebar.title("Configuration")
 
 with st.sidebar.expander("Lorenz Parameters (Tab 1)", expanded=True):
-    sigma = st.sidebar.slider("Sigma (σ)", 1.0, 20.0, 10.0)
-    rho = st.sidebar.slider("Rho (ρ)", 10.0, 40.0, 28.0)
-    beta = st.sidebar.slider("Beta (β)", 1.0, 5.0, 2.666)
-    t_max = st.sidebar.number_input("Max Time (t)", 10.0, 100.0, 40.0)
+    sigma = st.slider("Sigma (σ)", 1.0, 20.0, 10.0)
+    rho = st.slider("Rho (ρ)", 10.0, 40.0, 28.0)
+    beta = st.slider("Beta (β)", 1.0, 5.0, 2.666)
+    t_max = st.number_input("Max Time (t)", 10.0, 100.0, 40.0)
 
 with st.sidebar.expander("Logistic Map Parameters (Tab 2)", expanded=True):
-    rx = st.sidebar.slider("Growth Rate rx", 3.5, 4.0, 3.8, step=0.01)
-    ry = st.sidebar.slider("Growth Rate ry", 3.5, 4.0, 3.5, step=0.01)
-    beta_xy = st.sidebar.slider("Effect of Y on X (β_xy)", 0.0, 0.5, 0.02, step=0.01)
-    beta_yx = st.sidebar.slider("Effect of X on Y (β_yx)", 0.0, 0.5, 0.10, step=0.01)
+    rx = st.slider("Growth Rate rx", 3.5, 4.0, 3.8, step=0.01)
+    ry = st.slider("Growth Rate ry", 3.5, 4.0, 3.5, step=0.01)
+    beta_xy = st.slider("Effect of Y on X (β_xy)", 0.0, 0.5, 0.02, step=0.01)
+    beta_yx = st.slider("Effect of X on Y (β_yx)", 0.0, 0.5, 0.10, step=0.01)
 
 st.sidebar.header("Global Settings")
 
