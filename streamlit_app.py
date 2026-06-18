@@ -62,10 +62,10 @@ with st.sidebar.expander("Lorenz Parameters (Tab 1)", expanded=True):
     t_max = st.sidebar.number_input("Max Time (t)", 10.0, 100.0, 40.0)
 
 with st.sidebar.expander("Logistic Map Parameters (Tab 2)", expanded=True):
-    rx = st.slider("Growth Rate rx", 3.5, 4.0, 3.8, step=0.01)
-    ry = st.slider("Growth Rate ry", 3.5, 4.0, 3.5, step=0.01)
-    beta_xy = st.slider("Effect of Y on X (β_xy)", 0.0, 0.5, 0.02, step=0.01)
-    beta_yx = st.slider("Effect of X on Y (β_yx)", 0.0, 0.5, 0.10, step=0.01)
+    rx = st.sidebar.slider("Growth Rate rx", 3.5, 4.0, 3.8, step=0.01)
+    ry = st.sidebar.slider("Growth Rate ry", 3.5, 4.0, 3.5, step=0.01)
+    beta_xy = st.sidebar.slider("Effect of Y on X (β_xy)", 0.0, 0.5, 0.02, step=0.01)
+    beta_yx = st.sidebar.slider("Effect of X on Y (β_yx)", 0.0, 0.5, 0.10, step=0.01)
 
 st.sidebar.header("Global Settings")
 
@@ -93,8 +93,6 @@ with tab1:
     df_lorenz = generate_lorenz_data(sigma, rho, beta, t_max, num_points)
 
     st.markdown("---")
-    
-    # NEW: Variable pair selection
     var_pair = st.radio("Select Variable Pair to Analyze:", ["X and Y", "X and Z", "Y and Z"], horizontal=True)
     v1, v2 = var_pair.split(" and ")
 
@@ -126,15 +124,12 @@ with tab1:
         with st.spinner(f"Running Convergent Cross Mapping on {v1} and {v2}..."):
             lib_sizes_str = f"10 {max_lib_size} {lib_step}"
             
-            # Use dynamic variables here
             ccm_result = pyEDM.CCM(
                 dataFrame=df_lorenz, E=3, columns=v1, target=v2, 
                 libSizes=lib_sizes_str, sample=100, showPlot=False
             )
             
             fig3, ax3 = plt.subplots(figsize=(8, 5))
-            
-            # String matching for the dynamic DataFrame columns pyEDM returns
             col_v1_v2 = f"{v1}:{v2}"
             col_v2_v1 = f"{v2}:{v1}"
             
@@ -165,13 +160,17 @@ with tab1:
                     columns=v2, target=v1, E=3, Tp=0, tau=-1
                 )
                 
+                # ADDED: Correlation Calculation
+                corr_12 = simplex_12['Observations'].corr(simplex_12['Predictions'])
+                
                 fig_12, ax_12 = plt.subplots(figsize=(5, 5))
                 ax_12.scatter(simplex_12['Observations'], simplex_12['Predictions'], alpha=0.4, edgecolors='none', color='C0')
                 ax_12.plot([simplex_12['Observations'].min(), simplex_12['Observations'].max()],
                             [simplex_12['Observations'].min(), simplex_12['Observations'].max()], 'r--', lw=2)
                 ax_12.set_xlabel(f"Observed {v1}")
                 ax_12.set_ylabel(f"Predicted {v1} from M_{v2}")
-                ax_12.set_title("Cross-mapping Performance")
+                # ADDED: Display correlation in title
+                ax_12.set_title(f"Cross-mapping Performance\nρ = {corr_12:.3f}")
                 st.pyplot(fig_12)
                 plt.close()
 
@@ -182,13 +181,17 @@ with tab1:
                     columns=v1, target=v2, E=3, Tp=0, tau=-1
                 )
                 
+                # ADDED: Correlation Calculation
+                corr_21 = simplex_21['Observations'].corr(simplex_21['Predictions'])
+                
                 fig_21, ax_21 = plt.subplots(figsize=(5, 5))
                 ax_21.scatter(simplex_21['Observations'], simplex_21['Predictions'], alpha=0.4, edgecolors='none', color='C1')
                 ax_21.plot([simplex_21['Observations'].min(), simplex_21['Observations'].max()],
                             [simplex_21['Observations'].min(), simplex_21['Observations'].max()], 'r--', lw=2)
                 ax_21.set_xlabel(f"Observed {v2}")
                 ax_21.set_ylabel(f"Predicted {v2} from M_{v1}")
-                ax_21.set_title("Cross-mapping Performance")
+                # ADDED: Display correlation in title
+                ax_21.set_title(f"Cross-mapping Performance\nρ = {corr_21:.3f}")
                 st.pyplot(fig_21)
                 plt.close()
 
@@ -263,13 +266,17 @@ with tab2:
                     columns="Y", target="X", E=2, Tp=0, tau=-1
                 )
                 
+                # ADDED: Correlation Calculation
+                corr_xy_m = simplex_XY_m['Observations'].corr(simplex_XY_m['Predictions'])
+
                 fig_xy_m, ax_xy_m = plt.subplots(figsize=(5, 5))
                 ax_xy_m.scatter(simplex_XY_m['Observations'], simplex_XY_m['Predictions'], alpha=0.4, edgecolors='none', color='teal')
                 ax_xy_m.plot([simplex_XY_m['Observations'].min(), simplex_XY_m['Observations'].max()],
                               [simplex_XY_m['Observations'].min(), simplex_XY_m['Observations'].max()], 'r--', lw=2)
                 ax_xy_m.set_xlabel("Observed X")
                 ax_xy_m.set_ylabel("Predicted X from M_Y")
-                ax_xy_m.set_title("Cross-mapping Performance")
+                # ADDED: Display correlation in title
+                ax_xy_m.set_title(f"Cross-mapping Performance\nρ = {corr_xy_m:.3f}")
                 st.pyplot(fig_xy_m)
                 plt.close()
 
@@ -280,12 +287,16 @@ with tab2:
                     columns="X", target="Y", E=2, Tp=0, tau=-1
                 )
                 
+                # ADDED: Correlation Calculation
+                corr_yx_m = simplex_YX_m['Observations'].corr(simplex_YX_m['Predictions'])
+
                 fig_yx_m, ax_yx_m = plt.subplots(figsize=(5, 5))
                 ax_yx_m.scatter(simplex_YX_m['Observations'], simplex_YX_m['Predictions'], alpha=0.4, edgecolors='none', color='orange')
                 ax_yx_m.plot([simplex_YX_m['Observations'].min(), simplex_YX_m['Observations'].max()],
                               [simplex_YX_m['Observations'].min(), simplex_YX_m['Observations'].max()], 'r--', lw=2)
                 ax_yx_m.set_xlabel("Observed Y")
                 ax_yx_m.set_ylabel("Predicted Y from M_X")
-                ax_yx_m.set_title("Cross-mapping Performance")
+                # ADDED: Display correlation in title
+                ax_yx_m.set_title(f"Cross-mapping Performance\nρ = {corr_yx_m:.3f}")
                 st.pyplot(fig_yx_m)
                 plt.close()
