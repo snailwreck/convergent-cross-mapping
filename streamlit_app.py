@@ -6,7 +6,7 @@ from scipy.integrate import solve_ivp
 import pyEDM
 
 # --- Page Configuration ---
-st.set_page_config(page_title="CCM Explorer", layout="wide")
+st.set_page_config(page_title="CCM", layout="wide")
 
 # --- Functions ---
 @st.cache_data
@@ -73,7 +73,7 @@ max_lib_size = st.sidebar.slider("Max Library Size", 100, num_points - 10, 500, 
 lib_step = st.sidebar.number_input("Library Step Size", 10, 200, 20)
 
 # --- Main Application ---
-st.title("Convergent Cross Mapping (CCM) Explorer")
+st.title("Convergent Cross Mapping (CCM)")
 
 tab1, tab2 = st.tabs(["Lorenz Attractor (Continuous)", "Coupled Logistic Map (Discrete)"])
 
@@ -134,7 +134,7 @@ with tab1:
 
             # Prediction Performance Visualization 
             st.markdown("---")
-            st.subheader("Prediction Performance (Simplex Scatter)")
+            st.subheader("Prediction Performance")
 
             simplex_XY = pyEDM.Simplex(dataFrame=df_lorenz, lib=f"1 {max_lib_size}", pred=f"1 {max_lib_size}", E=3, columns="X", target="Y").dropna()
             simplex_YX = pyEDM.Simplex(dataFrame=df_lorenz, lib=f"1 {max_lib_size}", pred=f"1 {max_lib_size}", E=3, columns="Y", target="X").dropna()
@@ -225,7 +225,7 @@ with tab2:
 
             # Prediction Performance Visualization 
             st.markdown("---")
-            st.subheader("Prediction Performance (Simplex Scatter)")
+            st.subheader("Prediction Performance")
 
             simplex_XY_m = pyEDM.Simplex(dataFrame=df_map, lib=f"1 {max_lib_size}", pred=f"1 {max_lib_size}", E=2, columns="X", target="Y").dropna()
             simplex_YX_m = pyEDM.Simplex(dataFrame=df_map, lib=f"1 {max_lib_size}", pred=f"1 {max_lib_size}", E=2, columns="Y", target="X").dropna()
@@ -233,7 +233,7 @@ with tab2:
             col3_m, col4_m = st.columns(2)
             
             with col3_m:
-                st.markdown("### Predicting Y from X (Weak Link)")
+                st.markdown("### Predicting Y from X")
                 fig4_m, ax4_m = plt.subplots(figsize=(5, 5))
                 ax4_m.scatter(simplex_XY_m['Observations'], simplex_XY_m['Predictions'], alpha=0.5, s=10, color='teal')
                 min_val = min(simplex_XY_m['Observations'].min(), simplex_XY_m['Predictions'].min())
@@ -246,7 +246,7 @@ with tab2:
                 st.pyplot(fig4_m)
 
             with col4_m:
-                st.markdown("### Predicting X from Y (Strong Link)")
+                st.markdown("### Predicting X from Y")
                 fig5_m, ax5_m = plt.subplots(figsize=(5, 5))
                 ax5_m.scatter(simplex_YX_m['Observations'], simplex_YX_m['Predictions'], alpha=0.5, s=10, color='orange')
                 min_val = min(simplex_YX_m['Observations'].min(), simplex_YX_m['Predictions'].min())
