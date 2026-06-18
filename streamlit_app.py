@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.integrate import solve_ivp
-import pyEDM
+import pyEDM 
 
 # --- Page Configuration ---
 st.set_page_config(page_title="CCM", layout="wide")
@@ -68,8 +68,15 @@ with st.sidebar.expander("Logistic Map Parameters (Tab 2)", expanded=True):
     beta_yx = st.slider("Effect of X on Y (β_yx)", 0.0, 0.5, 0.10, step=0.01)
 
 st.sidebar.header("Global Settings")
-num_points = st.sidebar.number_input("Number of Data Points", 500, 5000, 2000, step=100)
-max_lib_size = st.sidebar.slider("Max Library Size", 100, num_points - 10, 500, step=100)
+
+# CHANGED: Number of data points is now a slider
+num_points = st.sidebar.slider("Number of Data Points (Length)", 500, 5000, 2000, step=100)
+
+# FIX: Dynamic bounds calculation to prevent slider constraint crashes
+absolute_max_lib = num_points - 50
+default_lib_value = min(500, absolute_max_lib)
+
+max_lib_size = st.sidebar.slider("Max Library Size", 100, absolute_max_lib, default_lib_value, step=50)
 lib_step = st.sidebar.number_input("Library Step Size", 10, 200, 20)
 
 # --- Main Application ---
@@ -82,14 +89,9 @@ tab1, tab2 = st.tabs(["Lorenz Attractor", "Coupled Logistic Map"])
 # ==========================================
 with tab1:
     st.header("Lorenz Attractor")
-    st.markdown(r"$$ \frac{dx}{dt} = \sigma(y-x)$$")
-    st.markdown(r"$$\frac{dy}{dt} = x(\rho-z)-y $$")
-    st.markdown(r"$$\frac{dz}{dt} = xy-\beta z $$")
-
     df_lorenz = generate_lorenz_data(sigma, rho, beta, t_max, num_points)
 
     col1, col2 = st.columns(2)
-
     if st.button("Generate Lorenz Graph & Time Series"):
         with col1:
             st.subheader("Lorenz Attractor (X vs Y)")
@@ -102,8 +104,10 @@ with tab1:
         with col2:
             st.subheader("Time Series (X and Y)")
             fig2, ax2 = plt.subplots(figsize=(6, 4))
-            ax2.plot(df_lorenz['Time'][:500], df_lorenz['X'][:500], label="X", lw=1)
-            ax2.plot(df_lorenz['Time'][:500], df_lorenz['Y'][:500], label="Y", lw=1)
+            # Plot dynamic slice based on generated length
+            plot_limit = min(500, num_points)
+            ax2.plot(df_lorenz['Time'][:plot_limit], df_lorenz['X'][:plot_limit], label="X", lw=1)
+            ax2.plot(df_lorenz['Time'][:plot_limit], df_lorenz['Y'][:plot_limit], label="Y", lw=1)
             ax2.set_xlabel("Time (Index)")
             ax2.set_ylabel("Value")
             ax2.legend()
@@ -134,40 +138,47 @@ with tab1:
             ax3.set_ylim([-0.1, 1.1])
             st.pyplot(fig3)
 
-            # Prediction Performance Visualization 
+            # --- Prediction Performance via pyEDM.Simplex ---
             st.markdown("---")
             st.subheader("Prediction Performance")
 
-            simplex_XY = pyEDM.Simplex(dataFrame=df_lorenz, lib=f"1 {max_lib_size}", pred=f"1 {max_lib_size}", E=3, columns="X", target="Y").dropna()
-            simplex_YX = pyEDM.Simplex(dataFrame=df_lorenz, lib=f"1 {max_lib_size}", pred=f"1 {max_lib_size}", E=3, columns="Y", target="X").dropna()
-
             col3, col4 = st.columns(2)
+            lib_range = [1, int(max_lib_size)]
+            pred_range = [1, int(num_points)]
             
             with col3:
-                st.markdown("### Predicting Y from X")
-                fig4, ax4 = plt.subplots(figsize=(5, 5))
-                ax4.scatter(simplex_XY['Observations'], simplex_XY['Predictions'], alpha=0.5, s=10, color='purple')
-                min_val = min(simplex_XY['Observations'].min(), simplex_XY['Predictions'].min())
-                max_val = max(simplex_XY['Observations'].max(), simplex_XY['Predictions'].max())
-                ax4.plot([min_val, max_val], [min_val, max_val], 'k--', lw=2, label="Perfect Prediction")
-                ax4.set_xlabel("True Observed Y")
-                ax4.set_ylabel("Predicted Y (from X)")
-                ax4.legend()
-                ax4.grid(True, alpha=0.3)
-                st.pyplot(fig4)
+                st.markdown("### Does X cause Y?")
+                simplex_XY = pyEDM.Simplex(
+                    dataFrame=df_lorenz, lib=lib_range, pred=pred_range,
+                    columns="Y", target="X", E=3, Tp=0, tau=-1
+                )
+                
+                fig_xy, ax_xy = plt.subplots(figsize=(5, 5))
+                ax_xy.scatter(simplex_XY['Observations'], simplex_XY['Predictions'], alpha=0.4, edgecolors='none', color='C0')
+                ax_xy.plot([simplex_XY['Observations'].min(), simplex_XY['Observations'].max()],
+                            [simplex_XY['Observations'].min(), simplex_XY['Observations'].max()], 'r--', lw=2)
+                ax_xy.set_xlabel("Observed X")
+                ax_xy.set_ylabel("Predicted X from M_Y")
+                ax_xy.set_title("Cross-mapping Performance")
+                st.pyplot(fig_xy)
+                plt.close()
 
             with col4:
-                st.markdown("### Predicting X from Y")
-                fig5, ax5 = plt.subplots(figsize=(5, 5))
-                ax5.scatter(simplex_YX['Observations'], simplex_YX['Predictions'], alpha=0.5, s=10, color='teal')
-                min_val = min(simplex_YX['Observations'].min(), simplex_YX['Predictions'].min())
-                max_val = max(simplex_YX['Observations'].max(), simplex_YX['Predictions'].max())
-                ax5.plot([min_val, max_val], [min_val, max_val], 'k--', lw=2, label="Perfect Prediction")
-                ax5.set_xlabel("True Observed X")
-                ax5.set_ylabel("Predicted X (from Y)")
-                ax5.legend()
-                ax5.grid(True, alpha=0.3)
-                st.pyplot(fig5)
+                st.markdown("### Does Y cause X?")
+                simplex_YX = pyEDM.Simplex(
+                    dataFrame=df_lorenz, lib=lib_range, pred=pred_range,
+                    columns="X", target="Y", E=3, Tp=0, tau=-1
+                )
+                
+                fig_yx, ax_yx = plt.subplots(figsize=(5, 5))
+                ax_yx.scatter(simplex_YX['Observations'], simplex_YX['Predictions'], alpha=0.4, edgecolors='none', color='C1')
+                ax_yx.plot([simplex_YX['Observations'].min(), simplex_YX['Observations'].max()],
+                            [simplex_YX['Observations'].min(), simplex_YX['Observations'].max()], 'r--', lw=2)
+                ax_yx.set_xlabel("Observed Y")
+                ax_yx.set_ylabel("Predicted Y from M_X")
+                ax_yx.set_title("Cross-mapping Performance")
+                st.pyplot(fig_yx)
+                plt.close()
 
 
 # ==========================================
@@ -175,13 +186,9 @@ with tab1:
 # ==========================================
 with tab2:
     st.header("Coupled Logistic Map")
-    st.markdown(r"$$ X_{t+1} = X_t [r_x - r_x X_t - \beta_{xy} Y_t]$$") 
-    st.markdown(r"$$Y_{t+1} = Y_t [r_y - r_y Y_t - \beta_{yx} X_t] $$")
-
     df_map = generate_logistic_data(rx, ry, beta_xy, beta_yx, num_points)
 
     col1_m, col2_m = st.columns(2)
-
     if st.button("Generate Logistic Map & Time Series"):
         with col1_m:
             st.subheader("Phase Space (X vs Y)")
@@ -192,10 +199,11 @@ with tab2:
             st.pyplot(fig1_m)
 
         with col2_m:
-            st.subheader("Time Series (First 100 Points)")
+            st.subheader("Time Series")
             fig2_m, ax2_m = plt.subplots(figsize=(6, 4))
-            ax2_m.plot(df_map['Time'][:100], df_map['X'][:100], label="X", marker='.', lw=1)
-            ax2_m.plot(df_map['Time'][:100], df_map['Y'][:100], label="Y", marker='.', lw=1)
+            plot_limit_m = min(100, num_points)
+            ax2_m.plot(df_map['Time'][:plot_limit_m], df_map['X'][:plot_limit_m], label="X", marker='.', lw=1)
+            ax2_m.plot(df_map['Time'][:plot_limit_m], df_map['Y'][:plot_limit_m], label="Y", marker='.', lw=1)
             ax2_m.set_xlabel("Time (Step)")
             ax2_m.set_ylabel("Value")
             ax2_m.legend()
@@ -226,37 +234,44 @@ with tab2:
             ax3_m.set_ylim([-0.1, 1.1])
             st.pyplot(fig3_m)
 
-            # Prediction Performance Visualization 
+            # --- Prediction Performance via pyEDM.Simplex ---
             st.markdown("---")
             st.subheader("Prediction Performance")
 
-            simplex_XY_m = pyEDM.Simplex(dataFrame=df_map, lib=f"1 {max_lib_size}", pred=f"1 {max_lib_size}", E=2, columns="X", target="Y").dropna()
-            simplex_YX_m = pyEDM.Simplex(dataFrame=df_map, lib=f"1 {max_lib_size}", pred=f"1 {max_lib_size}", E=2, columns="Y", target="X").dropna()
-
             col3_m, col4_m = st.columns(2)
+            lib_range_m = [1, int(max_lib_size)]
+            pred_range_m = [1, int(num_points)]
             
             with col3_m:
-                st.markdown("### Predicting Y from X")
-                fig4_m, ax4_m = plt.subplots(figsize=(5, 5))
-                ax4_m.scatter(simplex_XY_m['Observations'], simplex_XY_m['Predictions'], alpha=0.5, s=10, color='teal')
-                min_val = min(simplex_XY_m['Observations'].min(), simplex_XY_m['Predictions'].min())
-                max_val = max(simplex_XY_m['Observations'].max(), simplex_XY_m['Predictions'].max())
-                ax4_m.plot([min_val, max_val], [min_val, max_val], 'k--', lw=2, label="Perfect Prediction")
-                ax4_m.set_xlabel("True Observed Y")
-                ax4_m.set_ylabel("Predicted Y (from X)")
-                ax4_m.legend()
-                ax4_m.grid(True, alpha=0.3)
-                st.pyplot(fig4_m)
+                st.markdown("### Does X cause Y? ")
+                simplex_XY_m = pyEDM.Simplex(
+                    dataFrame=df_map, lib=lib_range_m, pred=pred_range_m,
+                    columns="Y", target="X", E=2, Tp=0, tau=-1
+                )
+                
+                fig_xy_m, ax_xy_m = plt.subplots(figsize=(5, 5))
+                ax_xy_m.scatter(simplex_XY_m['Observations'], simplex_XY_m['Predictions'], alpha=0.4, edgecolors='none', color='teal')
+                ax_xy_m.plot([simplex_XY_m['Observations'].min(), simplex_XY_m['Observations'].max()],
+                              [simplex_XY_m['Observations'].min(), simplex_XY_m['Observations'].max()], 'r--', lw=2)
+                ax_xy_m.set_xlabel("Observed X")
+                ax_xy_m.set_ylabel("Predicted X from M_Y")
+                ax_xy_m.set_title("Cross-mapping Performance")
+                st.pyplot(fig_xy_m)
+                plt.close()
 
             with col4_m:
-                st.markdown("### Predicting X from Y")
-                fig5_m, ax5_m = plt.subplots(figsize=(5, 5))
-                ax5_m.scatter(simplex_YX_m['Observations'], simplex_YX_m['Predictions'], alpha=0.5, s=10, color='orange')
-                min_val = min(simplex_YX_m['Observations'].min(), simplex_YX_m['Predictions'].min())
-                max_val = max(simplex_YX_m['Observations'].max(), simplex_YX_m['Predictions'].max())
-                ax5_m.plot([min_val, max_val], [min_val, max_val], 'k--', lw=2, label="Perfect Prediction")
-                ax5_m.set_xlabel("True Observed X")
-                ax5_m.set_ylabel("Predicted X (from Y)")
-                ax5_m.legend()
-                ax5_m.grid(True, alpha=0.3)
-                st.pyplot(fig5_m)
+                st.markdown("### Does Y cause X?")
+                simplex_YX_m = pyEDM.Simplex(
+                    dataFrame=df_map, lib=lib_range_m, pred=pred_range_m,
+                    columns="X", target="Y", E=2, Tp=0, tau=-1
+                )
+                
+                fig_yx_m, ax_yx_m = plt.subplots(figsize=(5, 5))
+                ax_yx_m.scatter(simplex_YX_m['Observations'], simplex_YX_m['Predictions'], alpha=0.4, edgecolors='none', color='orange')
+                ax_yx_m.plot([simplex_YX_m['Observations'].min(), simplex_YX_m['Observations'].max()],
+                              [simplex_YX_m['Observations'].min(), simplex_YX_m['Observations'].max()], 'r--', lw=2)
+                ax_yx_m.set_xlabel("Observed Y")
+                ax_yx_m.set_ylabel("Predicted Y from M_X")
+                ax_yx_m.set_title("Cross-mapping Performance")
+                st.pyplot(fig_yx_m)
+                plt.close()
