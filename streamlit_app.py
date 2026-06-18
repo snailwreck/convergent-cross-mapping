@@ -75,7 +75,7 @@ lib_step = st.sidebar.number_input("Library Step Size", 10, 200, 20)
 # --- Main Application ---
 st.title("Convergent Cross Mapping (CCM)")
 
-tab1, tab2 = st.tabs(["Lorenz Attractor (Continuous)", "Coupled Logistic Map (Discrete)"])
+tab1, tab2 = st.tabs(["Lorenz Attractor", "Coupled Logistic Map"])
 
 # ==========================================
 # TAB 1: LORENZ ATTRACTOR
@@ -84,7 +84,7 @@ with tab1:
     st.header("Lorenz Attractor")
     st.markdown(r"$$ \frac{dx}{dt} = \sigma(y-x)$$")
     st.markdown(r"$$\frac{dy}{dt} = x(\rho-z)-y $$")
-    st.mardkwon(r"$$\frac{dz}{dt} = xy-\beta z $$")
+    st.markdwon(r"$$\frac{dz}{dt} = xy-\beta z $$")
 
     df_lorenz = generate_lorenz_data(sigma, rho, beta, t_max, num_points)
 
