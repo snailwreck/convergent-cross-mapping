@@ -93,25 +93,45 @@ with tab1:
     df_lorenz = generate_lorenz_data(sigma, rho, beta, t_max, num_points)
 
     st.markdown("---")
+    st.subheader("Data Selection & Visualization")
     var_pair = st.radio("Select Variable Pair to Analyze:", ["X and Y", "X and Z", "Y and Z"], horizontal=True)
     v1, v2 = var_pair.split(" and ")
+
+    # ADDED: Sliding Window
+    window_start, window_end = st.slider(
+        "Select Time Window for Analysis",
+        min_value=1,
+        max_value=num_points,
+        value=(1, num_points),
+        step=10
+    )
+    
+    # Slice the dataframe based on the window
+    df_lorenz_window = df_lorenz[(df_lorenz['Time'] >= window_start) & (df_lorenz['Time'] <= window_end)].copy()
+    df_lorenz_window.reset_index(drop=True, inplace=True)
+    window_len = len(df_lorenz_window)
 
     col1, col2 = st.columns(2)
     if st.button(f"Generate Lorenz Graph & Time Series ({v1} vs {v2})"):
         with col1:
             st.subheader(f"Phase Space ({v1} vs {v2})")
             fig1, ax1 = plt.subplots(figsize=(6, 4))
-            ax1.plot(df_lorenz[v1], df_lorenz[v2], lw=0.5, color='royalblue')
+            ax1.plot(df_lorenz_window[v1], df_lorenz_window[v2], lw=0.8, color='royalblue')
             ax1.set_xlabel(v1)
             ax1.set_ylabel(v2)
+            ax1.set_title("Phase Space (Current Window)")
             st.pyplot(fig1)
 
         with col2:
             st.subheader(f"Time Series ({v1} and {v2})")
             fig2, ax2 = plt.subplots(figsize=(6, 4))
-            plot_limit = min(500, num_points)
-            ax2.plot(df_lorenz['Time'][:plot_limit], df_lorenz[v1][:plot_limit], label=v1, lw=1)
-            ax2.plot(df_lorenz['Time'][:plot_limit], df_lorenz[v2][:plot_limit], label=v2, lw=1)
+            plot_limit = min(1500, num_points) # Increased to show more context
+            ax2.plot(df_lorenz['Time'][:plot_limit], df_lorenz[v1][:plot_limit], label=v1, lw=1, alpha=0.8)
+            ax2.plot(df_lorenz['Time'][:plot_limit], df_lorenz[v2][:plot_limit], label=v2, lw=1, alpha=0.8)
+            
+            # Highlight the selected window
+            ax2.axvspan(window_start, window_end, color='yellow', alpha=0.2, label='Selected Window')
+            
             ax2.set_xlabel("Time (Index)")
             ax2.set_ylabel("Value")
             ax2.legend()
@@ -121,79 +141,82 @@ with tab1:
     st.subheader(f"CCM Analysis: {v1} and {v2} Coupling")
 
     if st.button(f"Run Lorenz CCM Analysis ({v1} & {v2})"):
-        with st.spinner(f"Running Convergent Cross Mapping on {v1} and {v2}..."):
-            lib_sizes_str = f"10 {max_lib_size} {lib_step}"
-            
-            ccm_result = pyEDM.CCM(
-                dataFrame=df_lorenz, E=3, columns=v1, target=v2, 
-                libSizes=lib_sizes_str, sample=100, showPlot=False
-            )
-            
-            fig3, ax3 = plt.subplots(figsize=(8, 5))
-            col_v1_v2 = f"{v1}:{v2}"
-            col_v2_v1 = f"{v2}:{v1}"
-            
-            if col_v1_v2 in ccm_result.columns and col_v2_v1 in ccm_result.columns:
-                ax3.plot(ccm_result['LibSize'], ccm_result[col_v1_v2], marker='o', label=f'{v1} cross-maps {v2} ({v2} causes {v1})')
-                ax3.plot(ccm_result['LibSize'], ccm_result[col_v2_v1], marker='s', label=f'{v2} cross-maps {v1} ({v1} causes {v2})')
-            
-            ax3.set_xlabel("Library Size (L)")
-            ax3.set_ylabel("Correlation (ρ)")
-            ax3.set_title(f"CCM Convergence ({v1} vs {v2})")
-            ax3.legend()
-            ax3.grid(True, linestyle='--', alpha=0.7)
-            ax3.set_ylim([-0.1, 1.1])
-            st.pyplot(fig3)
-
-            # --- Prediction Performance via pyEDM.Simplex ---
-            st.markdown("---")
-            st.subheader(f"Prediction Performance ({v1} vs {v2})")
-
-            col3, col4 = st.columns(2)
-            lib_range = [1, int(max_lib_size)]
-            pred_range = [1, int(num_points)]
-            
-            with col3:
-                st.markdown(f"### Does {v1} cause {v2}?")
-                simplex_12 = pyEDM.Simplex(
-                    dataFrame=df_lorenz, lib=lib_range, pred=pred_range,
-                    columns=v2, target=v1, E=3, Tp=0, tau=-1
+        if window_len < 100:
+            st.error("The selected time window is too small for meaningful CCM analysis. Please select a wider range.")
+        else:
+            with st.spinner(f"Running Convergent Cross Mapping on {v1} and {v2} for t={window_start} to t={window_end}..."):
+                
+                # Dynamically adjust max library size so pyEDM doesn't crash on small windows
+                dynamic_max_lib = max(10, window_len - 50)
+                actual_max_lib = min(max_lib_size, dynamic_max_lib)
+                lib_sizes_str = f"10 {actual_max_lib} {lib_step}"
+                
+                ccm_result = pyEDM.CCM(
+                    dataFrame=df_lorenz_window, E=3, columns=v1, target=v2, 
+                    libSizes=lib_sizes_str, sample=100, showPlot=False
                 )
                 
-                # ADDED: Correlation Calculation
-                corr_12 = simplex_12['Observations'].corr(simplex_12['Predictions'])
+                fig3, ax3 = plt.subplots(figsize=(8, 5))
+                col_v1_v2 = f"{v1}:{v2}"
+                col_v2_v1 = f"{v2}:{v1}"
                 
-                fig_12, ax_12 = plt.subplots(figsize=(5, 5))
-                ax_12.scatter(simplex_12['Observations'], simplex_12['Predictions'], alpha=0.4, edgecolors='none', color='C1')
-                ax_12.plot([simplex_12['Observations'].min(), simplex_12['Observations'].max()],
-                            [simplex_12['Observations'].min(), simplex_12['Observations'].max()], 'r--', lw=2)
-                ax_12.set_xlabel(f"Observed {v1}")
-                ax_12.set_ylabel(f"Predicted {v1} from M_{v2}")
-                # ADDED: Display correlation in title
-                ax_12.set_title(f"Cross-mapping Performance\nρ = {corr_12:.3f}")
-                st.pyplot(fig_12)
-                plt.close()
+                if col_v1_v2 in ccm_result.columns and col_v2_v1 in ccm_result.columns:
+                    ax3.plot(ccm_result['LibSize'], ccm_result[col_v1_v2], marker='o', label=f'{v1} cross-maps {v2} ({v2} causes {v1})')
+                    ax3.plot(ccm_result['LibSize'], ccm_result[col_v2_v1], marker='s', label=f'{v2} cross-maps {v1} ({v1} causes {v2})')
+                
+                ax3.set_xlabel("Library Size (L)")
+                ax3.set_ylabel("Correlation (ρ)")
+                ax3.set_title(f"CCM Convergence ({v1} vs {v2})\nWindow: t={window_start} to t={window_end}")
+                ax3.legend()
+                ax3.grid(True, linestyle='--', alpha=0.7)
+                ax3.set_ylim([-0.1, 1.1])
+                st.pyplot(fig3)
 
-            with col4:
-                st.markdown(f"### Does {v2} cause {v1}?")
-                simplex_21 = pyEDM.Simplex(
-                    dataFrame=df_lorenz, lib=lib_range, pred=pred_range,
-                    columns=v1, target=v2, E=3, Tp=0, tau=-1
-                )
+                # --- Prediction Performance via pyEDM.Simplex ---
+                st.markdown("---")
+                st.subheader(f"Prediction Performance ({v1} vs {v2})")
+
+                col3, col4 = st.columns(2)
+                lib_range = [1, int(actual_max_lib)]
+                pred_range = [1, int(window_len)]
                 
-                # ADDED: Correlation Calculation
-                corr_21 = simplex_21['Observations'].corr(simplex_21['Predictions'])
-                
-                fig_21, ax_21 = plt.subplots(figsize=(5, 5))
-                ax_21.scatter(simplex_21['Observations'], simplex_21['Predictions'], alpha=0.4, edgecolors='none', color='C0')
-                ax_21.plot([simplex_21['Observations'].min(), simplex_21['Observations'].max()],
-                            [simplex_21['Observations'].min(), simplex_21['Observations'].max()], 'r--', lw=2)
-                ax_21.set_xlabel(f"Observed {v2}")
-                ax_21.set_ylabel(f"Predicted {v2} from M_{v1}")
-                # ADDED: Display correlation in title
-                ax_21.set_title(f"Cross-mapping Performance\nρ = {corr_21:.3f}")
-                st.pyplot(fig_21)
-                plt.close()
+                with col3:
+                    st.markdown(f"### Does {v1} cause {v2}?")
+                    simplex_12 = pyEDM.Simplex(
+                        dataFrame=df_lorenz_window, lib=lib_range, pred=pred_range,
+                        columns=v2, target=v1, E=3, Tp=0, tau=-1
+                    )
+                    
+                    corr_12 = simplex_12['Observations'].corr(simplex_12['Predictions'])
+                    
+                    fig_12, ax_12 = plt.subplots(figsize=(5, 5))
+                    ax_12.scatter(simplex_12['Observations'], simplex_12['Predictions'], alpha=0.4, edgecolors='none', color='C1')
+                    ax_12.plot([simplex_12['Observations'].min(), simplex_12['Observations'].max()],
+                                [simplex_12['Observations'].min(), simplex_12['Observations'].max()], 'r--', lw=2)
+                    ax_12.set_xlabel(f"Observed {v1}")
+                    ax_12.set_ylabel(f"Predicted {v1} from M_{v2}")
+                    ax_12.set_title(f"Cross-mapping Performance\nρ = {corr_12:.3f}")
+                    st.pyplot(fig_12)
+                    plt.close()
+
+                with col4:
+                    st.markdown(f"### Does {v2} cause {v1}?")
+                    simplex_21 = pyEDM.Simplex(
+                        dataFrame=df_lorenz_window, lib=lib_range, pred=pred_range,
+                        columns=v1, target=v2, E=3, Tp=0, tau=-1
+                    )
+                    
+                    corr_21 = simplex_21['Observations'].corr(simplex_21['Predictions'])
+                    
+                    fig_21, ax_21 = plt.subplots(figsize=(5, 5))
+                    ax_21.scatter(simplex_21['Observations'], simplex_21['Predictions'], alpha=0.4, edgecolors='none', color='C0')
+                    ax_21.plot([simplex_21['Observations'].min(), simplex_21['Observations'].max()],
+                                [simplex_21['Observations'].min(), simplex_21['Observations'].max()], 'r--', lw=2)
+                    ax_21.set_xlabel(f"Observed {v2}")
+                    ax_21.set_ylabel(f"Predicted {v2} from M_{v1}")
+                    ax_21.set_title(f"Cross-mapping Performance\nρ = {corr_21:.3f}")
+                    st.pyplot(fig_21)
+                    plt.close()
 
 
 # ==========================================
@@ -266,16 +289,14 @@ with tab2:
                     columns="Y", target="X", E=2, Tp=0, tau=-1
                 )
                 
-                # ADDED: Correlation Calculation
                 corr_xy_m = simplex_XY_m['Observations'].corr(simplex_XY_m['Predictions'])
 
                 fig_xy_m, ax_xy_m = plt.subplots(figsize=(5, 5))
-                ax_xy_m.scatter(simplex_XY_m['Observations'], simplex_XY_m['Predictions'], alpha=0.4, edgecolors='none', color='teal')
+                ax_xy_m.scatter(simplex_XY_m['Observations'], simplex_XY_m['Predictions'], alpha=0.4, edgecolors='none', color='orange')
                 ax_xy_m.plot([simplex_XY_m['Observations'].min(), simplex_XY_m['Observations'].max()],
                               [simplex_XY_m['Observations'].min(), simplex_XY_m['Observations'].max()], 'r--', lw=2)
                 ax_xy_m.set_xlabel("Observed X")
                 ax_xy_m.set_ylabel("Predicted X from M_Y")
-                # ADDED: Display correlation in title
                 ax_xy_m.set_title(f"Cross-mapping Performance\nρ = {corr_xy_m:.3f}")
                 st.pyplot(fig_xy_m)
                 plt.close()
@@ -287,16 +308,14 @@ with tab2:
                     columns="X", target="Y", E=2, Tp=0, tau=-1
                 )
                 
-                # ADDED: Correlation Calculation
                 corr_yx_m = simplex_YX_m['Observations'].corr(simplex_YX_m['Predictions'])
 
                 fig_yx_m, ax_yx_m = plt.subplots(figsize=(5, 5))
-                ax_yx_m.scatter(simplex_YX_m['Observations'], simplex_YX_m['Predictions'], alpha=0.4, edgecolors='none', color='orange')
+                ax_yx_m.scatter(simplex_YX_m['Observations'], simplex_YX_m['Predictions'], alpha=0.4, edgecolors='none', color='teal')
                 ax_yx_m.plot([simplex_YX_m['Observations'].min(), simplex_YX_m['Observations'].max()],
                               [simplex_YX_m['Observations'].min(), simplex_YX_m['Observations'].max()], 'r--', lw=2)
                 ax_yx_m.set_xlabel("Observed Y")
                 ax_yx_m.set_ylabel("Predicted Y from M_X")
-                # ADDED: Display correlation in title
                 ax_yx_m.set_title(f"Cross-mapping Performance\nρ = {corr_yx_m:.3f}")
                 st.pyplot(fig_yx_m)
                 plt.close()
