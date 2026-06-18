@@ -56,10 +56,10 @@ def generate_logistic_data(rx, ry, beta_xy, beta_yx, num_points):
 st.sidebar.title("Configuration")
 
 with st.sidebar.expander("Lorenz Parameters (Tab 1)", expanded=True):
-    sigma = st.slider("Sigma (σ)", 1.0, 20.0, 10.0)
-    rho = st.slider("Rho (ρ)", 10.0, 40.0, 28.0)
-    beta = st.slider("Beta (β)", 1.0, 5.0, 2.666)
-    t_max = st.number_input("Max Time (t)", 10.0, 100.0, 40.0)
+    sigma = st.sidebar.slider("Sigma (σ)", 1.0, 20.0, 10.0)
+    rho = st.sidebar.slider("Rho (ρ)", 10.0, 40.0, 28.0)
+    beta = st.sidebar.slider("Beta (β)", 1.0, 5.0, 2.666)
+    t_max = st.sidebar.number_input("Max Time (t)", 10.0, 100.0, 40.0)
 
 with st.sidebar.expander("Logistic Map Parameters (Tab 2)", expanded=True):
     rx = st.slider("Growth Rate rx", 3.5, 4.0, 3.8, step=0.01)
@@ -69,10 +69,8 @@ with st.sidebar.expander("Logistic Map Parameters (Tab 2)", expanded=True):
 
 st.sidebar.header("Global Settings")
 
-# CHANGED: Number of data points is now a slider
 num_points = st.sidebar.slider("Number of Data Points (Length)", 500, 5000, 2000, step=100)
 
-# FIX: Dynamic bounds calculation to prevent slider constraint crashes
 absolute_max_lib = num_points - 50
 default_lib_value = min(500, absolute_max_lib)
 
@@ -89,50 +87,64 @@ tab1, tab2 = st.tabs(["Lorenz Attractor", "Coupled Logistic Map"])
 # ==========================================
 with tab1:
     st.header("Lorenz Attractor")
+    st.markdown(r"$$ \frac{dx}{dt} = \sigma(y-x)$$")
+    st.markdown(r"$$\frac{dy}{dt} = x(\rho-z)-y $$")
+    st.markdown(r"$$\frac{dz}{dt} = xy-\beta z $$")
     df_lorenz = generate_lorenz_data(sigma, rho, beta, t_max, num_points)
 
+    st.markdown("---")
+    
+    # NEW: Variable pair selection
+    var_pair = st.radio("Select Variable Pair to Analyze:", ["X and Y", "X and Z", "Y and Z"], horizontal=True)
+    v1, v2 = var_pair.split(" and ")
+
     col1, col2 = st.columns(2)
-    if st.button("Generate Lorenz Graph & Time Series"):
+    if st.button(f"Generate Lorenz Graph & Time Series ({v1} vs {v2})"):
         with col1:
-            st.subheader("Lorenz Attractor (X vs Y)")
+            st.subheader(f"Phase Space ({v1} vs {v2})")
             fig1, ax1 = plt.subplots(figsize=(6, 4))
-            ax1.plot(df_lorenz['X'], df_lorenz['Y'], lw=0.5, color='royalblue')
-            ax1.set_xlabel("X")
-            ax1.set_ylabel("Y")
+            ax1.plot(df_lorenz[v1], df_lorenz[v2], lw=0.5, color='royalblue')
+            ax1.set_xlabel(v1)
+            ax1.set_ylabel(v2)
             st.pyplot(fig1)
 
         with col2:
-            st.subheader("Time Series (X and Y)")
+            st.subheader(f"Time Series ({v1} and {v2})")
             fig2, ax2 = plt.subplots(figsize=(6, 4))
-            # Plot dynamic slice based on generated length
             plot_limit = min(500, num_points)
-            ax2.plot(df_lorenz['Time'][:plot_limit], df_lorenz['X'][:plot_limit], label="X", lw=1)
-            ax2.plot(df_lorenz['Time'][:plot_limit], df_lorenz['Y'][:plot_limit], label="Y", lw=1)
+            ax2.plot(df_lorenz['Time'][:plot_limit], df_lorenz[v1][:plot_limit], label=v1, lw=1)
+            ax2.plot(df_lorenz['Time'][:plot_limit], df_lorenz[v2][:plot_limit], label=v2, lw=1)
             ax2.set_xlabel("Time (Index)")
             ax2.set_ylabel("Value")
             ax2.legend()
             st.pyplot(fig2)
 
     st.markdown("---")
-    st.subheader("CCM Analysis: X and Y Coupling")
+    st.subheader(f"CCM Analysis: {v1} and {v2} Coupling")
 
-    if st.button("Run Lorenz CCM Analysis"):
-        with st.spinner("Running Convergent Cross Mapping on Lorenz..."):
+    if st.button(f"Run Lorenz CCM Analysis ({v1} & {v2})"):
+        with st.spinner(f"Running Convergent Cross Mapping on {v1} and {v2}..."):
             lib_sizes_str = f"10 {max_lib_size} {lib_step}"
             
+            # Use dynamic variables here
             ccm_result = pyEDM.CCM(
-                dataFrame=df_lorenz, E=3, columns="X", target="Y", 
+                dataFrame=df_lorenz, E=3, columns=v1, target=v2, 
                 libSizes=lib_sizes_str, sample=100, showPlot=False
             )
             
             fig3, ax3 = plt.subplots(figsize=(8, 5))
-            if 'X:Y' in ccm_result.columns and 'Y:X' in ccm_result.columns:
-                ax3.plot(ccm_result['LibSize'], ccm_result['X:Y'], marker='o', label='X cross-maps Y (Y causes X)')
-                ax3.plot(ccm_result['LibSize'], ccm_result['Y:X'], marker='s', label='Y cross-maps X (X causes Y)')
+            
+            # String matching for the dynamic DataFrame columns pyEDM returns
+            col_v1_v2 = f"{v1}:{v2}"
+            col_v2_v1 = f"{v2}:{v1}"
+            
+            if col_v1_v2 in ccm_result.columns and col_v2_v1 in ccm_result.columns:
+                ax3.plot(ccm_result['LibSize'], ccm_result[col_v1_v2], marker='o', label=f'{v1} cross-maps {v2} ({v2} causes {v1})')
+                ax3.plot(ccm_result['LibSize'], ccm_result[col_v2_v1], marker='s', label=f'{v2} cross-maps {v1} ({v1} causes {v2})')
             
             ax3.set_xlabel("Library Size (L)")
             ax3.set_ylabel("Correlation (ρ)")
-            ax3.set_title("Correlation vs. Library Size")
+            ax3.set_title(f"CCM Convergence ({v1} vs {v2})")
             ax3.legend()
             ax3.grid(True, linestyle='--', alpha=0.7)
             ax3.set_ylim([-0.1, 1.1])
@@ -140,44 +152,44 @@ with tab1:
 
             # --- Prediction Performance via pyEDM.Simplex ---
             st.markdown("---")
-            st.subheader("Prediction Performance")
+            st.subheader(f"Prediction Performance ({v1} vs {v2})")
 
             col3, col4 = st.columns(2)
             lib_range = [1, int(max_lib_size)]
             pred_range = [1, int(num_points)]
             
             with col3:
-                st.markdown("### Does X cause Y?")
-                simplex_XY = pyEDM.Simplex(
+                st.markdown(f"### Does {v1} cause {v2}?")
+                simplex_12 = pyEDM.Simplex(
                     dataFrame=df_lorenz, lib=lib_range, pred=pred_range,
-                    columns="Y", target="X", E=3, Tp=0, tau=-1
+                    columns=v2, target=v1, E=3, Tp=0, tau=-1
                 )
                 
-                fig_xy, ax_xy = plt.subplots(figsize=(5, 5))
-                ax_xy.scatter(simplex_XY['Observations'], simplex_XY['Predictions'], alpha=0.4, edgecolors='none', color='C0')
-                ax_xy.plot([simplex_XY['Observations'].min(), simplex_XY['Observations'].max()],
-                            [simplex_XY['Observations'].min(), simplex_XY['Observations'].max()], 'r--', lw=2)
-                ax_xy.set_xlabel("Observed X")
-                ax_xy.set_ylabel("Predicted X from M_Y")
-                ax_xy.set_title("Cross-mapping Performance")
-                st.pyplot(fig_xy)
+                fig_12, ax_12 = plt.subplots(figsize=(5, 5))
+                ax_12.scatter(simplex_12['Observations'], simplex_12['Predictions'], alpha=0.4, edgecolors='none', color='C0')
+                ax_12.plot([simplex_12['Observations'].min(), simplex_12['Observations'].max()],
+                            [simplex_12['Observations'].min(), simplex_12['Observations'].max()], 'r--', lw=2)
+                ax_12.set_xlabel(f"Observed {v1}")
+                ax_12.set_ylabel(f"Predicted {v1} from M_{v2}")
+                ax_12.set_title("Cross-mapping Performance")
+                st.pyplot(fig_12)
                 plt.close()
 
             with col4:
-                st.markdown("### Does Y cause X?")
-                simplex_YX = pyEDM.Simplex(
+                st.markdown(f"### Does {v2} cause {v1}?")
+                simplex_21 = pyEDM.Simplex(
                     dataFrame=df_lorenz, lib=lib_range, pred=pred_range,
-                    columns="X", target="Y", E=3, Tp=0, tau=-1
+                    columns=v1, target=v2, E=3, Tp=0, tau=-1
                 )
                 
-                fig_yx, ax_yx = plt.subplots(figsize=(5, 5))
-                ax_yx.scatter(simplex_YX['Observations'], simplex_YX['Predictions'], alpha=0.4, edgecolors='none', color='C1')
-                ax_yx.plot([simplex_YX['Observations'].min(), simplex_YX['Observations'].max()],
-                            [simplex_YX['Observations'].min(), simplex_YX['Observations'].max()], 'r--', lw=2)
-                ax_yx.set_xlabel("Observed Y")
-                ax_yx.set_ylabel("Predicted Y from M_X")
-                ax_yx.set_title("Cross-mapping Performance")
-                st.pyplot(fig_yx)
+                fig_21, ax_21 = plt.subplots(figsize=(5, 5))
+                ax_21.scatter(simplex_21['Observations'], simplex_21['Predictions'], alpha=0.4, edgecolors='none', color='C1')
+                ax_21.plot([simplex_21['Observations'].min(), simplex_21['Observations'].max()],
+                            [simplex_21['Observations'].min(), simplex_21['Observations'].max()], 'r--', lw=2)
+                ax_21.set_xlabel(f"Observed {v2}")
+                ax_21.set_ylabel(f"Predicted {v2} from M_{v1}")
+                ax_21.set_title("Cross-mapping Performance")
+                st.pyplot(fig_21)
                 plt.close()
 
 
@@ -186,6 +198,8 @@ with tab1:
 # ==========================================
 with tab2:
     st.header("Coupled Logistic Map")
+    st.markdown(r"$$ X_{t+1} = X_t [r_x - r_x X_t - \beta_{xy} Y_t]$$") 
+    st.markdown(r"$$Y_{t+1} = Y_t [r_y - r_y Y_t - \beta_{yx} X_t] $$")
     df_map = generate_logistic_data(rx, ry, beta_xy, beta_yx, num_points)
 
     col1_m, col2_m = st.columns(2)
@@ -228,7 +242,7 @@ with tab2:
             
             ax3_m.set_xlabel("Library Size (L)")
             ax3_m.set_ylabel("Correlation (ρ)")
-            ax3_m.set_title("CCM Convergence: Asymmetric Coupling")
+            ax3_m.set_title("CCM Convergence")
             ax3_m.legend()
             ax3_m.grid(True, linestyle='--', alpha=0.7)
             ax3_m.set_ylim([-0.1, 1.1])
@@ -243,7 +257,7 @@ with tab2:
             pred_range_m = [1, int(num_points)]
             
             with col3_m:
-                st.markdown("### Does X cause Y? ")
+                st.markdown("### Does X cause Y?")
                 simplex_XY_m = pyEDM.Simplex(
                     dataFrame=df_map, lib=lib_range_m, pred=pred_range_m,
                     columns="Y", target="X", E=2, Tp=0, tau=-1
