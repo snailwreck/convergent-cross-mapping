@@ -164,7 +164,7 @@ with tab1:
                 corr_12 = simplex_12['Observations'].corr(simplex_12['Predictions'])
                 
                 fig_12, ax_12 = plt.subplots(figsize=(5, 5))
-                ax_12.scatter(simplex_12['Observations'], simplex_12['Predictions'], alpha=0.4, edgecolors='none', color='C0')
+                ax_12.scatter(simplex_12['Observations'], simplex_12['Predictions'], alpha=0.4, edgecolors='none', color='C1')
                 ax_12.plot([simplex_12['Observations'].min(), simplex_12['Observations'].max()],
                             [simplex_12['Observations'].min(), simplex_12['Observations'].max()], 'r--', lw=2)
                 ax_12.set_xlabel(f"Observed {v1}")
@@ -185,7 +185,7 @@ with tab1:
                 corr_21 = simplex_21['Observations'].corr(simplex_21['Predictions'])
                 
                 fig_21, ax_21 = plt.subplots(figsize=(5, 5))
-                ax_21.scatter(simplex_21['Observations'], simplex_21['Predictions'], alpha=0.4, edgecolors='none', color='C1')
+                ax_21.scatter(simplex_21['Observations'], simplex_21['Predictions'], alpha=0.4, edgecolors='none', color='C0')
                 ax_21.plot([simplex_21['Observations'].min(), simplex_21['Observations'].max()],
                             [simplex_21['Observations'].min(), simplex_21['Observations'].max()], 'r--', lw=2)
                 ax_21.set_xlabel(f"Observed {v2}")
@@ -240,8 +240,8 @@ with tab2:
             
             fig3_m, ax3_m = plt.subplots(figsize=(8, 5))
             if 'X:Y' in ccm_result_m.columns and 'Y:X' in ccm_result_m.columns:
-                ax3_m.plot(ccm_result_m['LibSize'], ccm_result_m['X:Y'], marker='o', color='teal', label='X cross-maps Y (Y causes X)')
-                ax3_m.plot(ccm_result_m['LibSize'], ccm_result_m['Y:X'], marker='s', color='orange', label='Y cross-maps X (X causes Y)')
+                ax3_m.plot(ccm_result_m['LibSize'], ccm_result_m['X:Y'], marker='o', color='orange', label='X cross-maps Y (Y causes X)')
+                ax3_m.plot(ccm_result_m['LibSize'], ccm_result_m['Y:X'], marker='s', color='teal', label='Y cross-maps X (X causes Y)')
             
             ax3_m.set_xlabel("Library Size (L)")
             ax3_m.set_ylabel("Correlation (ρ)")
