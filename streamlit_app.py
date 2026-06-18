@@ -175,7 +175,7 @@ with tab1:
 # ==========================================
 with tab2:
     st.header("Coupled Logistic Map")
-    st.markdown(r"$$ X_{t+1} = X_t [r_x - r_x X_t - \beta_{xy} Y_t]$$"} 
+    st.markdown(r"$$ X_{t+1} = X_t [r_x - r_x X_t - \beta_{xy} Y_t]$$") 
     st.markdown(r"$$Y_{t+1} = Y_t [r_y - r_y Y_t - \beta_{yx} X_t] $$")
 
     df_map = generate_logistic_data(rx, ry, beta_xy, beta_yx, num_points)
