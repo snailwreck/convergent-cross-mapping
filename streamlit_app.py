@@ -125,13 +125,9 @@ with tab1:
         with col2:
             st.subheader(f"Time Series ({v1} and {v2})")
             fig2, ax2 = plt.subplots(figsize=(6, 4))
-            plot_limit = min(1500, num_points) # Increased to show more context
-            ax2.plot(df_lorenz['Time'][:plot_limit], df_lorenz[v1][:plot_limit], label=v1, lw=1, alpha=0.8)
-            ax2.plot(df_lorenz['Time'][:plot_limit], df_lorenz[v2][:plot_limit], label=v2, lw=1, alpha=0.8)
-            
-            # Highlight the selected window
-            ax2.axvspan(window_start, window_end, color='yellow', alpha=0.2, label='Selected Window')
-            
+            ax2.plot(df_lorenz_window['Time'], df_lorenz_window[v1], label=v1, lw=1, alpha=0.8)
+            ax2.plot(df_lorenz_window['Time'], df_lorenz_window[v2], label=v2, lw=1, alpha=0.8)
+
             ax2.set_xlabel("Time (Index)")
             ax2.set_ylabel("Value")
             ax2.legend()
@@ -241,14 +237,13 @@ with tab2:
         with col2_m:
             st.subheader("Time Series")
             fig2_m, ax2_m = plt.subplots(figsize=(6, 4))
-            plot_limit_m = min(100, num_points)
-            ax2_m.plot(df_map['Time'][:plot_limit_m], df_map['X'][:plot_limit_m], label="X", marker='.', lw=1)
-            ax2_m.plot(df_map['Time'][:plot_limit_m], df_map['Y'][:plot_limit_m], label="Y", marker='.', lw=1)
+            ax2_m.plot(df_map['Time'], df_map['X'], label="X", marker='.', lw=1)
+            ax2_m.plot(df_map['Time'], df_map['Y'], label="Y", marker='.', lw=1)
             ax2_m.set_xlabel("Time (Step)")
             ax2_m.set_ylabel("Value")
             ax2_m.legend()
             st.pyplot(fig2_m)
-
+            
     st.markdown("---")
     st.subheader("CCM Analysis: Asymmetric Causality")
 
