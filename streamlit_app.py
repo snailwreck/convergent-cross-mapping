@@ -125,8 +125,8 @@ with tab1:
         with col2:
             st.subheader(f"Time Series ({v1} and {v2})")
             fig2, ax2 = plt.subplots(figsize=(6, 4))
-            ax2.plot(df_lorenz_window['Time'], df_lorenz_window[v1], label=v1, lw=1, alpha=0.8)
-            ax2.plot(df_lorenz_window['Time'], df_lorenz_window[v2], label=v2, lw=1, alpha=0.8)
+            ax2.plot(df_lorenz_window['Time'], df_lorenz[v1], label=v1, lw=1, alpha=0.8)
+            ax2.plot(df_lorenz_window['Time'], df_lorenz[v2], label=v2, lw=1, alpha=0.8)
             ax2.axvspan(window_start, window_end, color='yellow', alpha=0.2, label='Selected Window')
             ax2.set_xlabel("Time (Index)")
             ax2.set_ylabel("Value")
