@@ -112,26 +112,25 @@ with tab1:
     window_len = len(df_lorenz_window)
 
     col1, col2 = st.columns(2)
-    if st.button(f"Generate Lorenz Graph & Time Series ({v1} vs {v2})"):
-        with col1:
-            st.subheader(f"Phase Space ({v1} vs {v2})")
-            fig1, ax1 = plt.subplots(figsize=(6, 4))
-            ax1.plot(df_lorenz_window[v1], df_lorenz_window[v2], lw=0.8, color='royalblue')
-            ax1.set_xlabel(v1)
-            ax1.set_ylabel(v2)
-            ax1.set_title("Phase Space (Current Window)")
-            st.pyplot(fig1)
+    with col1:
+        st.subheader(f"Phase Space ({v1} vs {v2})")
+        fig1, ax1 = plt.subplots(figsize=(6, 4))
+        ax1.plot(df_lorenz_window[v1], df_lorenz_window[v2], lw=0.8, color='royalblue')
+        ax1.set_xlabel(v1)
+        ax1.set_ylabel(v2)
+        ax1.set_title("Phase Space (Current Window)")
+        st.pyplot(fig1)
 
-        with col2:
-            st.subheader(f"Time Series ({v1} and {v2})")
-            fig2, ax2 = plt.subplots(figsize=(6, 4))
-            ax2.plot(df_lorenz_window['Time'], df_lorenz[v1], label=v1, lw=1, alpha=0.8)
-            ax2.plot(df_lorenz_window['Time'], df_lorenz[v2], label=v2, lw=1, alpha=0.8)
-            ax2.axvspan(window_start, window_end, color='yellow', alpha=0.2, label='Selected Window')
-            ax2.set_xlabel("Time (Index)")
-            ax2.set_ylabel("Value")
-            ax2.legend()
-            st.pyplot(fig2)
+    with col2:
+        st.subheader(f"Time Series ({v1} and {v2})")
+        fig2, ax2 = plt.subplots(figsize=(6, 4))
+        ax2.plot(df_lorenz['Time'], df_lorenz[v1], label=v1, lw=1, alpha=0.8)
+        ax2.plot(df_lorenz['Time'], df_lorenz[v2], label=v2, lw=1, alpha=0.8)
+        ax2.axvspan(window_start, window_end, color='yellow', alpha=0.2, label='Selected Window')
+        ax2.set_xlabel("Time (Index)")
+        ax2.set_ylabel("Value")
+        ax2.legend()
+        st.pyplot(fig2)
 
     st.markdown("---")
     st.subheader(f"CCM Analysis: {v1} and {v2} Coupling")
@@ -225,24 +224,23 @@ with tab2:
     df_map = generate_logistic_data(rx, ry, beta_xy, beta_yx, num_points)
 
     col1_m, col2_m = st.columns(2)
-    if st.button("Generate Logistic Map & Time Series"):
-        with col1_m:
-            st.subheader("Phase Space (X vs Y)")
-            fig1_m, ax1_m = plt.subplots(figsize=(6, 4))
-            ax1_m.scatter(df_map['X'], df_map['Y'], s=2, alpha=0.5, color='purple')
-            ax1_m.set_xlabel("X")
-            ax1_m.set_ylabel("Y")
-            st.pyplot(fig1_m)
+    with col1_m:
+        st.subheader("Phase Space (X vs Y)")
+        fig1_m, ax1_m = plt.subplots(figsize=(6, 4))
+        ax1_m.scatter(df_map['X'], df_map['Y'], s=2, alpha=0.5, color='purple')
+        ax1_m.set_xlabel("X")
+        ax1_m.set_ylabel("Y")
+        st.pyplot(fig1_m)
 
-        with col2_m:
-            st.subheader("Time Series")
-            fig2_m, ax2_m = plt.subplots(figsize=(6, 4))
-            ax2_m.plot(df_map['Time'], df_map['X'], label="X", marker='.', lw=1)
-            ax2_m.plot(df_map['Time'], df_map['Y'], label="Y", marker='.', lw=1)
-            ax2_m.set_xlabel("Time (Step)")
-            ax2_m.set_ylabel("Value")
-            ax2_m.legend()
-            st.pyplot(fig2_m)
+    with col2_m:
+        st.subheader("Time Series")
+        fig2_m, ax2_m = plt.subplots(figsize=(6, 4))
+        ax2_m.plot(df_map['Time'], df_map['X'], label="X", marker='.', lw=1)
+        ax2_m.plot(df_map['Time'], df_map['Y'], label="Y", marker='.', lw=1)
+        ax2_m.set_xlabel("Time (Step)")
+        ax2_m.set_ylabel("Value")
+        ax2_m.legend()
+        st.pyplot(fig2_m)
 
     st.markdown("---")
     st.subheader("CCM Analysis: Asymmetric Causality")
