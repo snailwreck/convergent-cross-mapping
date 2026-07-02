@@ -111,6 +111,21 @@ with tab1:
     df_lorenz_window.reset_index(drop=True, inplace=True)
     window_len = len(df_lorenz_window)
 
+    st.subheader("Variable Correlations (Selected Window)")
+
+    corr_matrix = df_lorenz_window[['X', 'Y', 'Z']].corr()
+    corr_xy = corr_matrix.loc['X', 'Y']
+    corr_yz = corr_matrix.loc['Y', 'Z']
+    corr_xz = corr_matrix.loc['X', 'Z']
+
+    corr_col1, corr_col2, corr_col3 = st.columns(3)
+    corr_col1.metric("Corr(X, Y)", f"{corr_xy:.3f}")
+    corr_col2.metric("Corr(Y, Z)", f"{corr_yz:.3f}")
+    corr_col3.metric("Corr(X, Z)", f"{corr_xz:.3f}")
+
+    with st.expander("Full Correlation Matrix"):
+        st.dataframe(corr_matrix.style.background_gradient(cmap='coolwarm', vmin=-1, vmax=1).format("{:.3f}"))
+
     col1, col2 = st.columns(2)
     with col1:
         st.subheader(f"Phase Space ({v1} vs {v2})")
