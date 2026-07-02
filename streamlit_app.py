@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.integrate import solve_ivp
 import pyEDM 
-from statsmodels.tsa.stattools import grangercausalitytests  # ADDED
+from statsmodels.tsa.stattools import grangercausalitytests  
 
 # --- Page Configuration ---
 st.set_page_config(page_title="CCM", layout="wide")
@@ -254,6 +254,7 @@ with tab1:
                     ax_gc.grid(True, linestyle='--', alpha=0.5)
                     st.pyplot(fig_gc)
                     plt.close()
+
                     # --- ADDED: Visualize the Underlying Granger Models ---
                     st.markdown("---")
                     st.subheader(f"Inside the Granger Causality Black Box (Predicting {v2})")
