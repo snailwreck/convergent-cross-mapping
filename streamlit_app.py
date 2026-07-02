@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.integrate import solve_ivp
 import pyEDM 
-from statsmodels.tsa.stattools import grangercausalitytests
+from statsmodels.tsa.stattools import grangercausalitytests  # ADDED
 
 # --- Page Configuration ---
 st.set_page_config(page_title="CCM", layout="wide")
@@ -229,35 +229,46 @@ with tab1:
 
                 # --- ADDED: Granger Causality Comparison Section ---
                 st.markdown("---")
-                st.subheader(f"Granger Causality Comparison ({v1} vs {v2})")
+                st.subheader("Granger Causality Comparison")
+                st.markdown(
+                    "Unlike CCM, which is optimized for non-linear deterministic systems where variables are "
+                    "dynamically coupled (non-separable), Granger Causality assumes **linear predictability** and "
+                    "**separability** (the idea that the cause can be cleanly removed from the effect's history). "
+                    "Let's see how it handles the non-linear Lorenz system:"
+                )
+                
+                max_lag = 5
                 try:
-                    max_lag = 5
-                    # statsmodels format: [dependent, independent]
-                    # Test if v1 Granger-causes v2 -> dependent=v2, independent=v1
+                    # df[[target, predictor]] -> checks if predictor Granger-causes target
                     gc_12 = grangercausalitytests(df_lorenz_window[[v2, v1]], maxlag=max_lag, verbose=False)
-                    p_12 = [gc_12[lag][0]['ssr_ftest'][1] for lag in range(1, max_lag + 1)]
+                    p_values_12 = [gc_12[lag][0]['ssr_ftest'][1] for lag in range(1, max_lag + 1)]
                     
-                    # Test if v2 Granger-causes v1 -> dependent=v1, independent=v2
                     gc_21 = grangercausalitytests(df_lorenz_window[[v1, v2]], maxlag=max_lag, verbose=False)
-                    p_21 = [gc_21[lag][0]['ssr_ftest'][1] for lag in range(1, max_lag + 1)]
+                    p_values_21 = [gc_21[lag][0]['ssr_ftest'][1] for lag in range(1, max_lag + 1)]
                     
                     fig_gc, ax_gc = plt.subplots(figsize=(8, 4))
                     lags = np.arange(1, max_lag + 1)
-                    ax_gc.plot(lags, p_12, marker='o', color='C1', linestyle='-', label=f"{v1} $\\rightarrow$ {v2} (p-value)")
-                    ax_gc.plot(lags, p_21, marker='s', color='C0', linestyle='-', label=f"{v2} $\\rightarrow$ {v1} (p-value)")
-                    ax_gc.axhline(0.05, color='red', linestyle='--', alpha=0.7, label='Significance threshold (α=0.05)')
-                    
-                    ax_gc.set_xlabel("Lag Options")
-                    ax_gc.set_ylabel("P-Value")
-                    ax_gc.set_title("Granger Causality F-Test Profiles")
+                    ax_gc.plot(lags, p_values_12, marker='o', color='C1', label=f'{v1} Granger-causes {v2}')
+                    ax_gc.plot(lags, p_values_21, marker='s', color='C0', label=f'{v2} Granger-causes {v1}')
+                    ax_gc.axhline(y=0.05, color='r', linestyle='--', label='α = 0.05 Significance Threshold')
+                    ax_gc.set_xlabel("Lag Step")
+                    ax_gc.set_ylabel("p-value (SSR F-test)")
+                    ax_gc.set_title("Granger Causality Significance vs. Lags")
                     ax_gc.set_ylim([-0.05, 1.05])
-                    ax_gc.set_xticks(lags)
                     ax_gc.legend()
                     ax_gc.grid(True, linestyle='--', alpha=0.5)
                     st.pyplot(fig_gc)
                     plt.close()
+                    
+                    st.info(
+                        "**Effectiveness Breakdown:** Notice how the p-values might fluctuate wildly or fail to "
+                        "show stable significance ($\alpha < 0.05$) across lags. Because the Lorenz system is purely "
+                        "deterministic and non-separable, the history of one variable is already fully embedded "
+                        "within the state space of the other. This creates a 'mirage' effect where linear methods like "
+                        "Granger Causality break down, proving why CCM is required for chaotic dynamic systems."
+                    )
                 except Exception as e:
-                    st.error(f"Granger causality computation encountered an error: {e}")
+                    st.error(f"Could not compute Granger Causality (likely due to data alignment/stationarity limitations): {e}")
 
 
 # ==========================================
