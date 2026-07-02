@@ -4,11 +4,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.integrate import solve_ivp
 import pyEDM 
-# ADDED: Import for Granger Causality
-from statsmodels.tsa.stattools import grangercausalitytests
+from statsmodels.tsa.stattools import grangercausalitytests  # ADDED
 
 # --- Page Configuration ---
-st.set_page_config(page_title="CCM vs Granger", layout="wide")
+st.set_page_config(page_title="CCM", layout="wide")
 
 # --- Functions ---
 @st.cache_data
@@ -150,6 +149,9 @@ with tab1:
     st.markdown("---")
     st.subheader(f"CCM Analysis: {v1} and {v2} Coupling")
 
+    # ADDED: Granger Causality Max Lag Slider (Placed outside the button condition)
+    max_lag = st.slider("Select Max Lag for Granger Causality Comparison", min_value=1, max_value=30, value=5, step=1)
+
     if st.button(f"Run Lorenz CCM Analysis ({v1} & {v2})"):
         if window_len < 100:
             st.error("The selected time window is too small for meaningful CCM analysis. Please select a wider range.")
@@ -202,7 +204,7 @@ with tab1:
                     fig_12, ax_12 = plt.subplots(figsize=(5, 5))
                     ax_12.scatter(simplex_12['Observations'], simplex_12['Predictions'], alpha=0.4, edgecolors='none', color='C1')
                     ax_12.plot([simplex_12['Observations'].min(), simplex_12['Observations'].max()],
-                                [simplex_12['Observations'].min(), simplex_12['Observations'].max()], 'r--', lw=2)
+                               [simplex_12['Observations'].min(), simplex_12['Observations'].max()], 'r--', lw=2)
                     ax_12.set_xlabel(f"Observed {v1}")
                     ax_12.set_ylabel(f"Predicted {v1} from M_{v2}")
                     ax_12.set_title(f"Cross-mapping Performance\nρ = {corr_12:.3f}")
@@ -221,57 +223,54 @@ with tab1:
                     fig_21, ax_21 = plt.subplots(figsize=(5, 5))
                     ax_21.scatter(simplex_21['Observations'], simplex_21['Predictions'], alpha=0.4, edgecolors='none', color='C0')
                     ax_21.plot([simplex_21['Observations'].min(), simplex_21['Observations'].max()],
-                                [simplex_21['Observations'].min(), simplex_21['Observations'].max()], 'r--', lw=2)
+                               [simplex_21['Observations'].min(), simplex_21['Observations'].max()], 'r--', lw=2)
                     ax_21.set_xlabel(f"Observed {v2}")
                     ax_21.set_ylabel(f"Predicted {v2} from M_{v1}")
                     ax_21.set_title(f"Cross-mapping Performance\nρ = {corr_21:.3f}")
                     st.pyplot(fig_21)
                     plt.close()
 
-    # ==========================================
-    # ADDED: GRANGER CAUSALITY COMPARISON
-    # ==========================================
-    st.markdown("---")
-    st.subheader(f"Linear Comparison: Granger Causality ({v1} vs {v2})")
-    max_lag = st.slider("Max Lag for Granger Causality", min_value=1, max_value=20, value=5, step=1, key="granger_lag")
-    
-    if st.button(f"Run Granger Causality Analysis ({v1} & {v2})"):
-        if window_len < max_lag * 3:
-            st.error("Window is too small for this max lag. Increase window or decrease lag.")
-        else:
-            with st.spinner("Running Granger Causality..."):
+                # --- ADDED: Granger Causality Comparison Section ---
+                st.markdown("---")
+                st.subheader("Granger Causality Comparison")
+                st.markdown(
+                    "Unlike CCM, which is optimized for non-linear deterministic systems where variables are "
+                    "dynamically coupled (non-separable), Granger Causality assumes **linear predictability** and "
+                    "**separability** (the idea that the cause can be cleanly removed from the effect's history). "
+                    "Let's see how it handles the non-linear Lorenz system:"
+                )
+                
                 try:
-                    # Granger test: Does v1 cause v2? 
-                    # (statsmodels format: 1st col is Target, 2nd is Predictor)
-                    gc_1_causes_2 = grangercausalitytests(df_lorenz_window[[v2, v1]], maxlag=max_lag, verbose=False)
+                    # df[[target, predictor]] -> checks if predictor Granger-causes target
+                    gc_12 = grangercausalitytests(df_lorenz_window[[v2, v1]], maxlag=max_lag, verbose=False)
+                    p_values_12 = [gc_12[lag][0]['ssr_ftest'][1] for lag in range(1, max_lag + 1)]
                     
-                    # Granger test: Does v2 cause v1?
-                    gc_2_causes_1 = grangercausalitytests(df_lorenz_window[[v1, v2]], maxlag=max_lag, verbose=False)
+                    gc_21 = grangercausalitytests(df_lorenz_window[[v1, v2]], maxlag=max_lag, verbose=False)
+                    p_values_21 = [gc_21[lag][0]['ssr_ftest'][1] for lag in range(1, max_lag + 1)]
                     
-                    lags = list(range(1, max_lag + 1))
-                    
-                    # Extracting the SSR F-test p-value
-                    p_vals_12 = [gc_1_causes_2[lag][0]['ssr_ftest'][1] for lag in lags]
-                    p_vals_21 = [gc_2_causes_1[lag][0]['ssr_ftest'][1] for lag in lags]
-                    
-                    fig_gc, ax_gc = plt.subplots(figsize=(8, 5))
-                    
-                    ax_gc.plot(lags, p_vals_12, marker='o', label=f'{v1} Granger-causes {v2}', color='C1')
-                    ax_gc.plot(lags, p_vals_21, marker='s', label=f'{v2} Granger-causes {v1}', color='C0')
-                    ax_gc.axhline(0.05, color='red', linestyle='--', label='Significance (p=0.05)')
-                    
-                    ax_gc.set_yscale('log')
-                    ax_gc.set_xlabel("Lag")
-                    ax_gc.set_ylabel("p-value (Log Scale)")
-                    ax_gc.set_title(f"Granger Causality (p-values vs Lag)\n*Lower p-value indicates stronger Granger-causality*")
+                    fig_gc, ax_gc = plt.subplots(figsize=(8, 4))
+                    lags = np.arange(1, max_lag + 1)
+                    ax_gc.plot(lags, p_values_12, marker='o', color='C1', label=f'{v1} Granger-causes {v2}')
+                    ax_gc.plot(lags, p_values_21, marker='s', color='C0', label=f'{v2} Granger-causes {v1}')
+                    ax_gc.axhline(y=0.05, color='r', linestyle='--', label='α = 0.05 Significance Threshold')
+                    ax_gc.set_xlabel("Lag Step")
+                    ax_gc.set_ylabel("p-value (SSR F-test)")
+                    ax_gc.set_title(f"Granger Causality Significance vs. Lags (Up to Lag {max_lag})")
+                    ax_gc.set_ylim([-0.05, 1.05])
                     ax_gc.legend()
-                    ax_gc.grid(True, linestyle='--', alpha=0.7)
-                    
+                    ax_gc.grid(True, linestyle='--', alpha=0.5)
                     st.pyplot(fig_gc)
+                    plt.close()
                     
-                    st.info(f"**Interpretation Note:** In coupled, non-linear dynamic systems like the Lorenz Attractor, Granger causality often struggles to correctly uncouple variables. Notice how it may assert false equivalence (both cause each other strongly) or fluctuate wildly compared to CCM.")
+                    st.info(
+                        "**Effectiveness Breakdown:** Notice how the p-values might fluctuate wildly or fail to "
+                        "show stable significance ($\alpha < 0.05$) across lags. Because the Lorenz system is purely "
+                        "deterministic and non-separable, the history of one variable is already fully embedded "
+                        "within the state space of the other. This creates a 'mirage' effect where linear methods like "
+                        "Granger Causality break down, proving why CCM is required for chaotic dynamic systems."
+                    )
                 except Exception as e:
-                    st.error(f"Error computing Granger Causality: {e}. (Ensure data variability isn't exactly zero).")
+                    st.error(f"Could not compute Granger Causality (likely due to data alignment/stationarity limitations): {e}")
 
 
 # ==========================================
