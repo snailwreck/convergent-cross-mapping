@@ -132,7 +132,8 @@ with tab1:
         ax2.legend()
         st.pyplot(fig2)
 
-        st.subheader("Variable Correlations (Selected Window)")
+    
+    st.subheader("Variable Correlations (Selected Window)")
 
     corr_matrix = df_lorenz_window[['X', 'Y', 'Z']].corr()
     corr_xy = corr_matrix.loc['X', 'Y']
@@ -143,7 +144,7 @@ with tab1:
     corr_col1.metric("Corr(X, Y)", f"{corr_xy:.3f}")
     corr_col2.metric("Corr(Y, Z)", f"{corr_yz:.3f}")
     corr_col3.metric("Corr(X, Z)", f"{corr_xz:.3f}")
-    
+
     st.markdown("---")
     st.subheader(f"CCM Analysis: {v1} and {v2} Coupling")
 
