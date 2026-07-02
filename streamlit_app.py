@@ -3,8 +3,8 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.integrate import solve_ivp
-import pyEDM
-from statsmodels.tsa.stattools import grangercausalitytests
+import pyEDM 
+from statsmodels.tsa.stattools import grangercausalitytests  # ADDED
 
 # --- Page Configuration ---
 st.set_page_config(page_title="CCM", layout="wide")
@@ -53,36 +53,6 @@ def generate_logistic_data(rx, ry, beta_xy, beta_yx, num_points):
     })
     return df
 
-def run_granger(df, col1, col2, max_lag):
-    """
-    Runs Granger causality tests for lags 1..max_lag in both directions.
-    Returns two lists of (lag, F-statistic, p-value): one for col1->col2, one for col2->col1.
-    """
-    results_12 = []  # col2 causes col1 (col1 ~ lags of col1 + lags of col2)
-    results_21 = []  # col1 causes col2
-
-    data_12 = df[[col1, col2]].dropna().values
-    data_21 = df[[col2, col1]].dropna().values
-
-    for lag in range(1, max_lag + 1):
-        try:
-            res_12 = grangercausalitytests(data_12, maxlag=lag, verbose=False)
-            f_12 = res_12[lag][0]['ssr_ftest'][0]
-            p_12 = res_12[lag][0]['ssr_ftest'][1]
-            results_12.append((lag, f_12, p_12))
-        except Exception:
-            results_12.append((lag, np.nan, np.nan))
-
-        try:
-            res_21 = grangercausalitytests(data_21, maxlag=lag, verbose=False)
-            f_21 = res_21[lag][0]['ssr_ftest'][0]
-            p_21 = res_21[lag][0]['ssr_ftest'][1]
-            results_21.append((lag, f_21, p_21))
-        except Exception:
-            results_21.append((lag, np.nan, np.nan))
-
-    return results_12, results_21
-
 # --- Sidebar UI ---
 st.sidebar.title("Configuration")
 
@@ -107,7 +77,6 @@ default_lib_value = min(500, absolute_max_lib)
 
 max_lib_size = st.sidebar.slider("Max Library Size", 100, absolute_max_lib, default_lib_value, step=50)
 lib_step = st.sidebar.number_input("Library Step Size", 10, 200, 20)
-max_granger_lag = st.sidebar.slider("Max Granger Lag", 1, 50, 20)
 
 # --- Main Application ---
 st.title("Convergent Cross Mapping (CCM)")
@@ -129,6 +98,7 @@ with tab1:
     var_pair = st.radio("Select Variable Pair to Analyze:", ["X and Y", "X and Z", "Y and Z"], horizontal=True)
     v1, v2 = var_pair.split(" and ")
 
+    # ADDED: Sliding Window
     window_start, window_end = st.slider(
         "Select Time Window for Analysis",
         min_value=1,
@@ -143,27 +113,28 @@ with tab1:
     window_len = len(df_lorenz_window)
 
     col1, col2 = st.columns(2)
-    if st.button(f"Generate Lorenz Graph & Time Series ({v1} vs {v2})"):
-        with col1:
-            st.subheader(f"Phase Space ({v1} vs {v2})")
-            fig1, ax1 = plt.subplots(figsize=(6, 4))
-            ax1.plot(df_lorenz_window[v1], df_lorenz_window[v2], lw=0.8, color='royalblue')
-            ax1.set_xlabel(v1)
-            ax1.set_ylabel(v2)
-            ax1.set_title("Phase Space (Current Window)")
-            st.pyplot(fig1)
+    with col1:
+        st.subheader(f"Phase Space ({v1} vs {v2})")
+        fig1, ax1 = plt.subplots(figsize=(6, 4))
+        ax1.plot(df_lorenz_window[v1], df_lorenz_window[v2], lw=0.8, color='royalblue')
+        ax1.set_xlabel(v1)
+        ax1.set_ylabel(v2)
+        ax1.set_title("Phase Space (Current Window)")
+        st.pyplot(fig1)
 
-        with col2:
-            st.subheader(f"Time Series ({v1} and {v2})")
-            fig2, ax2 = plt.subplots(figsize=(6, 4))
-            ax2.plot(df_lorenz['Time'], df_lorenz[v1], label=v1, lw=1, alpha=0.8)
-            ax2.plot(df_lorenz['Time'], df_lorenz[v2], label=v2, lw=1, alpha=0.8)
-            ax2.axvspan(window_start, window_end, color='yellow', alpha=0.2, label='Selected Window')
-            ax2.set_xlabel("Time (Index)")
-            ax2.set_ylabel("Value")
-            ax2.legend()
-            st.pyplot(fig2)
-        st.subheader("Variable Correlations (Selected Window)")
+    with col2:
+        st.subheader(f"Time Series ({v1} and {v2})")
+        fig2, ax2 = plt.subplots(figsize=(6, 4))
+        ax2.plot(df_lorenz['Time'], df_lorenz[v1], label=v1, lw=1, alpha=0.8)
+        ax2.plot(df_lorenz['Time'], df_lorenz[v2], label=v2, lw=1, alpha=0.8)
+        ax2.axvspan(window_start, window_end, color='yellow', alpha=0.2, label='Selected Window')
+        ax2.set_xlabel("Time (Index)")
+        ax2.set_ylabel("Value")
+        ax2.legend()
+        st.pyplot(fig2)
+
+    
+    st.subheader("Variable Correlations (Selected Window)")
 
     corr_matrix = df_lorenz_window[['X', 'Y', 'Z']].corr()
     corr_xy = corr_matrix.loc['X', 'Y']
@@ -177,6 +148,9 @@ with tab1:
 
     st.markdown("---")
     st.subheader(f"CCM Analysis: {v1} and {v2} Coupling")
+
+    # ADDED: Granger Causality Max Lag Slider (Placed outside the button condition)
+    max_lag = st.slider("Select Max Lag for Granger Causality Comparison", min_value=1, max_value=30, value=5, step=1)
 
     if st.button(f"Run Lorenz CCM Analysis ({v1} & {v2})"):
         if window_len < 100:
@@ -230,7 +204,7 @@ with tab1:
                     fig_12, ax_12 = plt.subplots(figsize=(5, 5))
                     ax_12.scatter(simplex_12['Observations'], simplex_12['Predictions'], alpha=0.4, edgecolors='none', color='C1')
                     ax_12.plot([simplex_12['Observations'].min(), simplex_12['Observations'].max()],
-                                [simplex_12['Observations'].min(), simplex_12['Observations'].max()], 'r--', lw=2)
+                               [simplex_12['Observations'].min(), simplex_12['Observations'].max()], 'r--', lw=2)
                     ax_12.set_xlabel(f"Observed {v1}")
                     ax_12.set_ylabel(f"Predicted {v1} from M_{v2}")
                     ax_12.set_title(f"Cross-mapping Performance\nρ = {corr_12:.3f}")
@@ -249,66 +223,54 @@ with tab1:
                     fig_21, ax_21 = plt.subplots(figsize=(5, 5))
                     ax_21.scatter(simplex_21['Observations'], simplex_21['Predictions'], alpha=0.4, edgecolors='none', color='C0')
                     ax_21.plot([simplex_21['Observations'].min(), simplex_21['Observations'].max()],
-                                [simplex_21['Observations'].min(), simplex_21['Observations'].max()], 'r--', lw=2)
+                               [simplex_21['Observations'].min(), simplex_21['Observations'].max()], 'r--', lw=2)
                     ax_21.set_xlabel(f"Observed {v2}")
                     ax_21.set_ylabel(f"Predicted {v2} from M_{v1}")
                     ax_21.set_title(f"Cross-mapping Performance\nρ = {corr_21:.3f}")
                     st.pyplot(fig_21)
                     plt.close()
 
-    st.markdown("---")
-    st.subheader(f"Granger Causality Analysis: {v1} and {v2}")
-
-    if st.button(f"Run Lorenz Granger Analysis ({v1} & {v2})"):
-        if window_len < 100:
-            st.error("The selected time window is too small for Granger analysis. Please select a wider range.")
-        else:
-            with st.spinner(f"Running Granger causality tests on {v1} and {v2}..."):
-                gc_12, gc_21 = run_granger(df_lorenz_window, v1, v2, max_granger_lag)
-
-                lags     = [r[0] for r in gc_12]
-                f_12     = [r[1] for r in gc_12]
-                p_12     = [r[2] for r in gc_12]
-                f_21     = [r[1] for r in gc_21]
-                p_21     = [r[2] for r in gc_21]
-
-                fig_gc, (ax_f, ax_p) = plt.subplots(1, 2, figsize=(12, 5))
-
-                # F-statistic plot
-                ax_f.plot(lags, f_12, marker='o', label=f'{v2} causes {v1}')
-                ax_f.plot(lags, f_21, marker='s', label=f'{v1} causes {v2}')
-                ax_f.set_xlabel("Lag")
-                ax_f.set_ylabel("F-statistic")
-                ax_f.set_title(f"Granger F-statistic vs Lag ({v1} vs {v2})\nWindow: t={window_start} to t={window_end}")
-                ax_f.legend()
-                ax_f.grid(True, linestyle='--', alpha=0.7)
-
-                # p-value plot
-                ax_p.plot(lags, p_12, marker='o', label=f'{v2} causes {v1}')
-                ax_p.plot(lags, p_21, marker='s', label=f'{v1} causes {v2}')
-                ax_p.axhline(0.05, color='red', linestyle='--', lw=1.5, label='p = 0.05')
-                ax_p.set_xlabel("Lag")
-                ax_p.set_ylabel("p-value")
-                ax_p.set_title(f"Granger p-value vs Lag ({v1} vs {v2})\nWindow: t={window_start} to t={window_end}")
-                ax_p.legend()
-                ax_p.grid(True, linestyle='--', alpha=0.7)
-
-                plt.tight_layout()
-                st.pyplot(fig_gc)
-                plt.close()
-
-                # Summary table
-                st.markdown("**Results Summary**")
-                summary_rows = []
-                for i, lag in enumerate(lags):
-                    summary_rows.append({
-                        'Lag': lag,
-                        f'F ({v2}→{v1})': f"{f_12[i]:.3f}" if not np.isnan(f_12[i]) else "N/A",
-                        f'p ({v2}→{v1})': f"{p_12[i]:.4f}" if not np.isnan(p_12[i]) else "N/A",
-                        f'F ({v1}→{v2})': f"{f_21[i]:.3f}" if not np.isnan(f_21[i]) else "N/A",
-                        f'p ({v1}→{v2})': f"{p_21[i]:.4f}" if not np.isnan(p_21[i]) else "N/A",
-                    })
-                st.dataframe(pd.DataFrame(summary_rows), use_container_width=True)
+                # --- ADDED: Granger Causality Comparison Section ---
+                st.markdown("---")
+                st.subheader("Granger Causality Comparison")
+                st.markdown(
+                    "Unlike CCM, which is optimized for non-linear deterministic systems where variables are "
+                    "dynamically coupled (non-separable), Granger Causality assumes **linear predictability** and "
+                    "**separability** (the idea that the cause can be cleanly removed from the effect's history). "
+                    "Let's see how it handles the non-linear Lorenz system:"
+                )
+                
+                try:
+                    # df[[target, predictor]] -> checks if predictor Granger-causes target
+                    gc_12 = grangercausalitytests(df_lorenz_window[[v2, v1]], maxlag=max_lag, verbose=False)
+                    p_values_12 = [gc_12[lag][0]['ssr_ftest'][1] for lag in range(1, max_lag + 1)]
+                    
+                    gc_21 = grangercausalitytests(df_lorenz_window[[v1, v2]], maxlag=max_lag, verbose=False)
+                    p_values_21 = [gc_21[lag][0]['ssr_ftest'][1] for lag in range(1, max_lag + 1)]
+                    
+                    fig_gc, ax_gc = plt.subplots(figsize=(8, 4))
+                    lags = np.arange(1, max_lag + 1)
+                    ax_gc.plot(lags, p_values_12, marker='o', color='C1', label=f'{v1} Granger-causes {v2}')
+                    ax_gc.plot(lags, p_values_21, marker='s', color='C0', label=f'{v2} Granger-causes {v1}')
+                    ax_gc.axhline(y=0.05, color='r', linestyle='--', label='α = 0.05 Significance Threshold')
+                    ax_gc.set_xlabel("Lag Step")
+                    ax_gc.set_ylabel("p-value (SSR F-test)")
+                    ax_gc.set_title(f"Granger Causality Significance vs. Lags (Up to Lag {max_lag})")
+                    ax_gc.set_ylim([-0.05, 1.05])
+                    ax_gc.legend()
+                    ax_gc.grid(True, linestyle='--', alpha=0.5)
+                    st.pyplot(fig_gc)
+                    plt.close()
+                    
+                    st.info(
+                        "**Effectiveness Breakdown:** Notice how the p-values might fluctuate wildly or fail to "
+                        "show stable significance ($\alpha < 0.05$) across lags. Because the Lorenz system is purely "
+                        "deterministic and non-separable, the history of one variable is already fully embedded "
+                        "within the state space of the other. This creates a 'mirage' effect where linear methods like "
+                        "Granger Causality break down, proving why CCM is required for chaotic dynamic systems."
+                    )
+                except Exception as e:
+                    st.error(f"Could not compute Granger Causality (likely due to data alignment/stationarity limitations): {e}")
 
 
 # ==========================================
@@ -321,25 +283,23 @@ with tab2:
     df_map = generate_logistic_data(rx, ry, beta_xy, beta_yx, num_points)
 
     col1_m, col2_m = st.columns(2)
-    if st.button("Generate Logistic Map & Time Series"):
-        with col1_m:
-            st.subheader("Phase Space (X vs Y)")
-            fig1_m, ax1_m = plt.subplots(figsize=(6, 4))
-            ax1_m.scatter(df_map['X'], df_map['Y'], s=2, alpha=0.5, color='purple')
-            ax1_m.set_xlabel("X")
-            ax1_m.set_ylabel("Y")
-            st.pyplot(fig1_m)
+    with col1_m:
+        st.subheader("Phase Space (X vs Y)")
+        fig1_m, ax1_m = plt.subplots(figsize=(6, 4))
+        ax1_m.scatter(df_map['X'], df_map['Y'], s=2, alpha=0.5, color='purple')
+        ax1_m.set_xlabel("X")
+        ax1_m.set_ylabel("Y")
+        st.pyplot(fig1_m)
 
-        with col2_m:
-            st.subheader("Time Series")
-            fig2_m, ax2_m = plt.subplots(figsize=(6, 4))
-            # FIX: removed plot_limit cap — plot all points
-            ax2_m.plot(df_map['Time'], df_map['X'], label="X", marker='.', lw=1)
-            ax2_m.plot(df_map['Time'], df_map['Y'], label="Y", marker='.', lw=1)
-            ax2_m.set_xlabel("Time (Step)")
-            ax2_m.set_ylabel("Value")
-            ax2_m.legend()
-            st.pyplot(fig2_m)
+    with col2_m:
+        st.subheader("Time Series")
+        fig2_m, ax2_m = plt.subplots(figsize=(6, 4))
+        ax2_m.plot(df_map['Time'], df_map['X'], label="X", marker='.', lw=1)
+        ax2_m.plot(df_map['Time'], df_map['Y'], label="Y", marker='.', lw=1)
+        ax2_m.set_xlabel("Time (Step)")
+        ax2_m.set_ylabel("Value")
+        ax2_m.legend()
+        st.pyplot(fig2_m)
 
     st.markdown("---")
     st.subheader("CCM Analysis: Asymmetric Causality")
@@ -411,54 +371,3 @@ with tab2:
                 ax_yx_m.set_title(f"Cross-mapping Performance\nρ = {corr_yx_m:.3f}")
                 st.pyplot(fig_yx_m)
                 plt.close()
-
-    st.markdown("---")
-    st.subheader("Granger Causality Analysis: X and Y")
-
-    if st.button("Run Logistic Map Granger Analysis"):
-        with st.spinner("Running Granger causality tests on Logistic Map..."):
-            gc_12_m, gc_21_m = run_granger(df_map, "X", "Y", max_granger_lag)
-
-            lags_m = [r[0] for r in gc_12_m]
-            f_12_m = [r[1] for r in gc_12_m]
-            p_12_m = [r[2] for r in gc_12_m]
-            f_21_m = [r[1] for r in gc_21_m]
-            p_21_m = [r[2] for r in gc_21_m]
-
-            fig_gc_m, (ax_f_m, ax_p_m) = plt.subplots(1, 2, figsize=(12, 5))
-
-            # F-statistic plot
-            ax_f_m.plot(lags_m, f_12_m, marker='o', color='orange', label='Y causes X')
-            ax_f_m.plot(lags_m, f_21_m, marker='s', color='teal', label='X causes Y')
-            ax_f_m.set_xlabel("Lag")
-            ax_f_m.set_ylabel("F-statistic")
-            ax_f_m.set_title("Granger F-statistic vs Lag (X vs Y)")
-            ax_f_m.legend()
-            ax_f_m.grid(True, linestyle='--', alpha=0.7)
-
-            # p-value plot
-            ax_p_m.plot(lags_m, p_12_m, marker='o', color='orange', label='Y causes X')
-            ax_p_m.plot(lags_m, p_21_m, marker='s', color='teal', label='X causes Y')
-            ax_p_m.axhline(0.05, color='red', linestyle='--', lw=1.5, label='p = 0.05')
-            ax_p_m.set_xlabel("Lag")
-            ax_p_m.set_ylabel("p-value")
-            ax_p_m.set_title("Granger p-value vs Lag (X vs Y)")
-            ax_p_m.legend()
-            ax_p_m.grid(True, linestyle='--', alpha=0.7)
-
-            plt.tight_layout()
-            st.pyplot(fig_gc_m)
-            plt.close()
-
-            # Summary table
-            st.markdown("**Results Summary**")
-            summary_rows_m = []
-            for i, lag in enumerate(lags_m):
-                summary_rows_m.append({
-                    'Lag': lag,
-                    'F (Y→X)': f"{f_12_m[i]:.3f}" if not np.isnan(f_12_m[i]) else "N/A",
-                    'p (Y→X)': f"{p_12_m[i]:.4f}" if not np.isnan(p_12_m[i]) else "N/A",
-                    'F (X→Y)': f"{f_21_m[i]:.3f}" if not np.isnan(f_21_m[i]) else "N/A",
-                    'p (X→Y)': f"{p_21_m[i]:.4f}" if not np.isnan(p_21_m[i]) else "N/A",
-                })
-            st.dataframe(pd.DataFrame(summary_rows_m), use_container_width=True)
