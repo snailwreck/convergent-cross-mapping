@@ -234,33 +234,17 @@ with tab1:
                 st.subheader("Granger Causality Comparison")
                 
                 try:
-                    # df[[target, predictor]] -> checks if predictor Granger-causes target
+                    
+                    # --- ADDED: Visualize the Underlying Granger Models ---
+                    st.markdown("---")
+                    st.subheader(f"Univariate and Bivariate Autoregressive Models (Predicting {v2})")
+
                     gc_12 = grangercausalitytests(df_lorenz_window[[v2, v1]], maxlag=max_lag, verbose=False)
                     p_values_12 = [gc_12[lag][0]['ssr_ftest'][1] for lag in range(1, max_lag + 1)]
                     
                     gc_21 = grangercausalitytests(df_lorenz_window[[v1, v2]], maxlag=max_lag, verbose=False)
                     p_values_21 = [gc_21[lag][0]['ssr_ftest'][1] for lag in range(1, max_lag + 1)]
                     
-                    fig_gc, ax_gc = plt.subplots(figsize=(8, 4))
-                    lags = np.arange(1, max_lag + 1)
-                    ax_gc.plot(lags, p_values_12, marker='o', color='C1', label=f'{v1} Granger-causes {v2}')
-                    ax_gc.plot(lags, p_values_21, marker='s', color='C0', label=f'{v2} Granger-causes {v1}')
-                    ax_gc.axhline(y=0.05, color='r', linestyle='--', label='α = 0.05 Significance Threshold')
-                    ax_gc.set_xlabel("Lag Step")
-                    ax_gc.set_ylabel("p-value")
-                    ax_gc.set_title(f"Granger Causality Significance vs. Lags (Up to Lag {max_lag})")
-                    ax_gc.set_ylim([-0.05, 1.05])
-                    ax_gc.legend()
-                    ax_gc.grid(True, linestyle='--', alpha=0.5)
-                    st.pyplot(fig_gc)
-                    plt.close()
-
-                    # --- ADDED: Visualize the Underlying Granger Models ---
-                    st.markdown("---")
-                    st.subheader(f"Inside the Granger Causality Black Box (Predicting {v2})")
-                    st.markdown(f"Using the **{max_lag}** lag setting from the sidebar, here are the fitted predictions for the Restricted (Univariate) vs. Unrestricted (Bivariate) models.")
-
-                    # Use the sidebar's max_lag to grab the model for that lag
                     models_tuple = gc_12[max_lag][1]
                     restricted_model = models_tuple[0]    # Univariate AR (Past Y only)
                     unrestricted_model = models_tuple[1]  # Bivariate AR (Past Y + Past X)
@@ -280,7 +264,7 @@ with tab1:
                     ax_fit.plot(time_axis, pred_restricted, label=f"Univariate AR (Uses past {v2} only)", color='red', linestyle='dashed', alpha=0.7)
                     ax_fit.plot(time_axis, pred_unrestricted, label=f"Bivariate AR (Uses past {v2} & {v1})", color='dodgerblue', linestyle='dotted', lw=2)
 
-                    ax_fit.set_xlabel("Time (Index)")
+                    ax_fit.set_xlabel("Time")
                     ax_fit.set_ylabel(v2)
                     ax_fit.set_title(f"Granger Linear Fits at Lag {max_lag} (Full Time Series)")
                     ax_fit.legend()
@@ -288,6 +272,23 @@ with tab1:
 
                     st.pyplot(fig_fit)
                     plt.close()
+
+                    # df[[target, predictor]] -> checks if predictor Granger-causes target
+
+                    fig_gc, ax_gc = plt.subplots(figsize=(8, 4))
+                    lags = np.arange(1, max_lag + 1)
+                    ax_gc.plot(lags, p_values_12, marker='o', color='C1', label=f'{v1} Granger-causes {v2}')
+                    ax_gc.plot(lags, p_values_21, marker='s', color='C0', label=f'{v2} Granger-causes {v1}')
+                    ax_gc.axhline(y=0.05, color='r', linestyle='--', label='α = 0.05 Significance Threshold')
+                    ax_gc.set_xlabel("Lag Step")
+                    ax_gc.set_ylabel("p-value")
+                    ax_gc.set_title(f"Granger Causality Significance vs. Lags (Up to Lag {max_lag})")
+                    ax_gc.set_ylim([-0.05, 1.05])
+                    ax_gc.legend()
+                    ax_gc.grid(True, linestyle='--', alpha=0.5)
+                    st.pyplot(fig_gc)
+                    plt.close()
+
                     
                 except Exception as e:
                     st.error(f"Could not compute Granger Causality (likely due to data alignment/stationarity limitations): {e}")
