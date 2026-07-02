@@ -4,6 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.integrate import solve_ivp
 import pyEDM 
+from statsmodels.tsa.stattools import grangercausalitytests
 
 # --- Page Configuration ---
 st.set_page_config(page_title="CCM", layout="wide")
@@ -200,7 +201,7 @@ with tab1:
                     fig_12, ax_12 = plt.subplots(figsize=(5, 5))
                     ax_12.scatter(simplex_12['Observations'], simplex_12['Predictions'], alpha=0.4, edgecolors='none', color='C1')
                     ax_12.plot([simplex_12['Observations'].min(), simplex_12['Observations'].max()],
-                                [simplex_12['Observations'].min(), simplex_12['Observations'].max()], 'r--', lw=2)
+                               [simplex_12['Observations'].min(), simplex_12['Observations'].max()], 'r--', lw=2)
                     ax_12.set_xlabel(f"Observed {v1}")
                     ax_12.set_ylabel(f"Predicted {v1} from M_{v2}")
                     ax_12.set_title(f"Cross-mapping Performance\nρ = {corr_12:.3f}")
@@ -219,12 +220,44 @@ with tab1:
                     fig_21, ax_21 = plt.subplots(figsize=(5, 5))
                     ax_21.scatter(simplex_21['Observations'], simplex_21['Predictions'], alpha=0.4, edgecolors='none', color='C0')
                     ax_21.plot([simplex_21['Observations'].min(), simplex_21['Observations'].max()],
-                                [simplex_21['Observations'].min(), simplex_21['Observations'].max()], 'r--', lw=2)
+                               [simplex_21['Observations'].min(), simplex_21['Observations'].max()], 'r--', lw=2)
                     ax_21.set_xlabel(f"Observed {v2}")
                     ax_21.set_ylabel(f"Predicted {v2} from M_{v1}")
                     ax_21.set_title(f"Cross-mapping Performance\nρ = {corr_21:.3f}")
                     st.pyplot(fig_21)
                     plt.close()
+
+                # --- ADDED: Granger Causality Comparison Section ---
+                st.markdown("---")
+                st.subheader(f"Granger Causality Comparison ({v1} vs {v2})")
+                try:
+                    max_lag = 5
+                    # statsmodels format: [dependent, independent]
+                    # Test if v1 Granger-causes v2 -> dependent=v2, independent=v1
+                    gc_12 = grangercausalitytests(df_lorenz_window[[v2, v1]], maxlag=max_lag, verbose=False)
+                    p_12 = [gc_12[lag][0]['ssr_ftest'][1] for lag in range(1, max_lag + 1)]
+                    
+                    # Test if v2 Granger-causes v1 -> dependent=v1, independent=v2
+                    gc_21 = grangercausalitytests(df_lorenz_window[[v1, v2]], maxlag=max_lag, verbose=False)
+                    p_21 = [gc_21[lag][0]['ssr_ftest'][1] for lag in range(1, max_lag + 1)]
+                    
+                    fig_gc, ax_gc = plt.subplots(figsize=(8, 4))
+                    lags = np.arange(1, max_lag + 1)
+                    ax_gc.plot(lags, p_12, marker='o', color='C1', linestyle='-', label=f"{v1} $\\rightarrow$ {v2} (p-value)")
+                    ax_gc.plot(lags, p_21, marker='s', color='C0', linestyle='-', label=f"{v2} $\\rightarrow$ {v1} (p-value)")
+                    ax_gc.axhline(0.05, color='red', linestyle='--', alpha=0.7, label='Significance threshold (α=0.05)')
+                    
+                    ax_gc.set_xlabel("Lag Options")
+                    ax_gc.set_ylabel("P-Value")
+                    ax_gc.set_title("Granger Causality F-Test Profiles")
+                    ax_gc.set_ylim([-0.05, 1.05])
+                    ax_gc.set_xticks(lags)
+                    ax_gc.legend()
+                    ax_gc.grid(True, linestyle='--', alpha=0.5)
+                    st.pyplot(fig_gc)
+                    plt.close()
+                except Exception as e:
+                    st.error(f"Granger causality computation encountered an error: {e}")
 
 
 # ==========================================
