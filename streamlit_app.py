@@ -122,10 +122,7 @@ with tab1:
     corr_col1.metric("Corr(X, Y)", f"{corr_xy:.3f}")
     corr_col2.metric("Corr(Y, Z)", f"{corr_yz:.3f}")
     corr_col3.metric("Corr(X, Z)", f"{corr_xz:.3f}")
-
-    with st.expander("Full Correlation Matrix"):
-        st.dataframe(corr_matrix.style.background_gradient(cmap='coolwarm', vmin=-1, vmax=1).format("{:.3f}"))
-
+    
     col1, col2 = st.columns(2)
     with col1:
         st.subheader(f"Phase Space ({v1} vs {v2})")
