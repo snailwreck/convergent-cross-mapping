@@ -53,6 +53,79 @@ def generate_logistic_data(rx, ry, beta_xy, beta_yx, num_points):
     })
     return df
 
+# --- Rolling Window Analysis Functions ---
+@st.cache_data(show_spinner=False)
+def compute_rolling_correlation(df, v1, v2, window_size, step):
+    """Computes Pearson correlation between v1 and v2 over a rolling window."""
+    times, corrs = [], []
+    n = len(df)
+    for start in range(0, n - window_size + 1, step):
+        end = start + window_size
+        window = df.iloc[start:end]
+        corrs.append(window[v1].corr(window[v2]))
+        times.append(df['Time'].iloc[end - 1])
+    return pd.DataFrame({'Time': times, 'Correlation': corrs})
+
+
+@st.cache_data(show_spinner=False)
+def compute_rolling_granger(df, target, predictor, window_size, step, lag):
+    """
+    Rolling Granger causality test: does `predictor` Granger-cause `target`?
+    Returns, for each window, the F-test p-value plus the R^2 of the
+    restricted (target's own past only) and unrestricted (target's past +
+    predictor's past) linear models -- the "linear fit" underlying the test.
+    """
+    times, pvals, r2_restricted, r2_unrestricted = [], [], [], []
+    n = len(df)
+    for start in range(0, n - window_size + 1, step):
+        end = start + window_size
+        window = df.iloc[start:end][[target, predictor]].reset_index(drop=True)
+        try:
+            gc = grangercausalitytests(window, maxlag=lag, verbose=False)
+            pval = gc[lag][0]['ssr_ftest'][1]
+            models = gc[lag][1]
+            restricted_model, unrestricted_model = models[0], models[1]
+            times.append(df['Time'].iloc[end - 1])
+            pvals.append(pval)
+            r2_restricted.append(restricted_model.rsquared)
+            r2_unrestricted.append(unrestricted_model.rsquared)
+        except Exception:
+            continue
+    result = pd.DataFrame({
+        'Time': times,
+        'PValue': pvals,
+        'R2_Restricted': r2_restricted,
+        'R2_Unrestricted': r2_unrestricted
+    })
+    if not result.empty:
+        result['DeltaR2'] = result['R2_Unrestricted'] - result['R2_Restricted']
+    return result
+
+
+@st.cache_data(show_spinner=False)
+def compute_rolling_ccm(df, v1, v2, window_size, step, E, sample):
+    """Rolling CCM cross-map skill (rho) between v1 and v2 over a rolling window."""
+    times, rho_12, rho_21 = [], [], []
+    n = len(df)
+    lib_size = min(window_size, max(E * 3 + 10, window_size - 10))
+    lib_str = str(lib_size)
+    col_12 = f"{v1}:{v2}"
+    col_21 = f"{v2}:{v1}"
+    for start in range(0, n - window_size + 1, step):
+        end = start + window_size
+        window = df.iloc[start:end][['Time', v1, v2]].reset_index(drop=True)
+        try:
+            res = pyEDM.CCM(
+                dataFrame=window, E=E, columns=v1, target=v2,
+                libSizes=lib_str, sample=sample, showPlot=False
+            )
+            times.append(df['Time'].iloc[end - 1])
+            rho_12.append(res[col_12].iloc[-1])
+            rho_21.append(res[col_21].iloc[-1])
+        except Exception:
+            continue
+    return pd.DataFrame({'Time': times, col_12: rho_12, col_21: rho_21})
+
 # --- Sidebar UI ---
 st.sidebar.title("Configuration")
 
@@ -78,6 +151,15 @@ default_lib_value = min(500, absolute_max_lib)
 max_lib_size = st.sidebar.slider("Max Library Size", 100, absolute_max_lib, default_lib_value, step=50)
 lib_step = st.sidebar.number_input("Library Step Size", 10, 200, 20)
 max_lag = st.sidebar.slider("Max Lag for Granger Causality", min_value=1, max_value=30, value=10, step=1)
+
+with st.sidebar.expander("Rolling Window Analysis Settings (Tab 1)", expanded=False):
+    st.caption("Controls the rolling-window correlation / Granger causality / CCM analysis on the full Lorenz series.")
+    roll_window_max = max(60, num_points // 2)
+    roll_window_default = min(300, roll_window_max)
+    roll_window_size = st.slider("Rolling Window Size", min_value=30, max_value=roll_window_max, value=roll_window_default, step=10)
+    roll_step = st.slider("Rolling Step Size", min_value=10, max_value=500, value=50, step=10)
+    granger_lag_roll = st.slider("Granger Lag (Rolling)", min_value=1, max_value=20, value=5, step=1)
+    ccm_sample_roll = st.slider("CCM Sample Size (Rolling, speed vs. stability)", min_value=10, max_value=200, value=30, step=10)
 
 
 # --- Main Application ---
@@ -292,6 +374,165 @@ with tab1:
                     
                 except Exception as e:
                     st.error(f"Could not compute Granger Causality (likely due to data alignment/stationarity limitations): {e}")
+
+    # ==========================================
+    # ROLLING WINDOW ANALYSIS (FULL TIME SERIES)
+    # ==========================================
+    st.markdown("---")
+    st.header("Rolling Window Analysis (Full Time Series)")
+    st.markdown(
+        "Slides a fixed-size window across the **entire** Lorenz series (independent of the "
+        "window selected above) and recomputes pairwise correlation, Granger causality, and "
+        "CCM skill at each window position for all three variable pairs — showing how these "
+        "relationships evolve over time, e.g. as the trajectory switches between the two lobes "
+        "of the attractor."
+    )
+
+    n_windows_est = max(0, (num_points - roll_window_size) // roll_step + 1)
+    st.caption(
+        f"Current settings produce **{n_windows_est} windows** per pair "
+        f"(window size = {roll_window_size}, step = {roll_step}, Granger lag = {granger_lag_roll}). "
+        f"CCM is the slowest step (~{n_windows_est * 3} total CCM calls) — this may take a minute or two."
+    )
+
+    run_rolling = st.button("Run Rolling Window Analysis", type="primary")
+
+    if run_rolling:
+        if roll_window_size >= num_points:
+            st.error("Rolling window size must be smaller than the total number of data points.")
+        elif n_windows_est < 2:
+            st.error("Current settings produce fewer than 2 windows. Reduce the window size or step.")
+        else:
+            pairs = [('X', 'Y'), ('X', 'Z'), ('Y', 'Z')]
+            progress_bar = st.progress(0.0, text="Starting rolling window analysis...")
+            total_steps = len(pairs) * 3  # correlation, granger, ccm per pair
+            step_count = 0
+            rolling_results = {}
+
+            for pa, pb in pairs:
+                progress_bar.progress(step_count / total_steps, text=f"Rolling correlation: {pa}-{pb}...")
+                corr_df = compute_rolling_correlation(df_lorenz, pa, pb, roll_window_size, roll_step)
+                step_count += 1
+
+                progress_bar.progress(step_count / total_steps, text=f"Rolling Granger causality: {pa}-{pb}...")
+                # granger_ab: does pa Granger-cause pb? (target=pb, predictor=pa)
+                granger_ab = compute_rolling_granger(df_lorenz, pb, pa, roll_window_size, roll_step, granger_lag_roll)
+                # granger_ba: does pb Granger-cause pa? (target=pa, predictor=pb)
+                granger_ba = compute_rolling_granger(df_lorenz, pa, pb, roll_window_size, roll_step, granger_lag_roll)
+                step_count += 1
+
+                progress_bar.progress(step_count / total_steps, text=f"Rolling CCM: {pa}-{pb}...")
+                ccm_df = compute_rolling_ccm(df_lorenz, pa, pb, roll_window_size, roll_step, 3, ccm_sample_roll)
+                step_count += 1
+
+                rolling_results[(pa, pb)] = {
+                    'corr': corr_df,
+                    'granger_ab': granger_ab,
+                    'granger_ba': granger_ba,
+                    'ccm': ccm_df
+                }
+
+            progress_bar.progress(1.0, text="Done!")
+            progress_bar.empty()
+
+            st.session_state['rolling_results'] = rolling_results
+            st.session_state['rolling_pairs'] = pairs
+            st.session_state['rolling_lag'] = granger_lag_roll
+
+    if 'rolling_results' in st.session_state:
+        rolling_results = st.session_state['rolling_results']
+        pairs = st.session_state['rolling_pairs']
+        lag_used = st.session_state['rolling_lag']
+
+        for idx, (pa, pb) in enumerate(pairs):
+            data = rolling_results[(pa, pb)]
+            with st.expander(f"{pa} ↔ {pb}", expanded=(idx == 0)):
+
+                row1_col1, row1_col2 = st.columns(2)
+
+                with row1_col1:
+                    st.markdown(f"**Rolling Pearson Correlation ({pa}, {pb})**")
+                    corr_df = data['corr']
+                    if not corr_df.empty:
+                        fig_rc, ax_rc = plt.subplots(figsize=(6, 4))
+                        ax_rc.plot(corr_df['Time'], corr_df['Correlation'], color='royalblue', lw=1.5)
+                        ax_rc.axhline(0, color='gray', linestyle=':', lw=1)
+                        ax_rc.set_xlabel("Time (Window End)")
+                        ax_rc.set_ylabel(f"Corr({pa}, {pb})")
+                        ax_rc.set_ylim([-1.05, 1.05])
+                        ax_rc.grid(True, linestyle='--', alpha=0.4)
+                        st.pyplot(fig_rc)
+                        plt.close(fig_rc)
+                    else:
+                        st.info("No windows computed.")
+
+                with row1_col2:
+                    st.markdown(f"**Rolling CCM Cross-Map Skill ({pa}, {pb})**")
+                    ccm_df = data['ccm']
+                    col_ab = f"{pa}:{pb}"
+                    col_ba = f"{pb}:{pa}"
+                    if not ccm_df.empty and col_ab in ccm_df.columns and col_ba in ccm_df.columns:
+                        fig_rccm, ax_rccm = plt.subplots(figsize=(6, 4))
+                        ax_rccm.plot(ccm_df['Time'], ccm_df[col_ab], marker='o', ms=3,
+                                     label=f'{pa} cross-maps {pb} ({pb} causes {pa})')
+                        ax_rccm.plot(ccm_df['Time'], ccm_df[col_ba], marker='s', ms=3,
+                                     label=f'{pb} cross-maps {pa} ({pa} causes {pb})')
+                        ax_rccm.set_xlabel("Time (Window End)")
+                        ax_rccm.set_ylabel("CCM ρ")
+                        ax_rccm.set_ylim([-0.1, 1.1])
+                        ax_rccm.legend(fontsize=8)
+                        ax_rccm.grid(True, linestyle='--', alpha=0.4)
+                        st.pyplot(fig_rccm)
+                        plt.close(fig_rccm)
+                    else:
+                        st.info("CCM could not be computed for these windows (try a larger window size).")
+
+                g_ab, g_ba = data['granger_ab'], data['granger_ba']
+                row2_col1, row2_col2 = st.columns(2)
+
+                with row2_col1:
+                    st.markdown(f"**Rolling Granger Causality: p-values (lag={lag_used})**")
+                    if not g_ab.empty and not g_ba.empty:
+                        fig_gp, ax_gp = plt.subplots(figsize=(6, 4))
+                        ax_gp.plot(g_ab['Time'], g_ab['PValue'], marker='o', ms=3, color='C1',
+                                   label=f'{pa} causes {pb}')
+                        ax_gp.plot(g_ba['Time'], g_ba['PValue'], marker='s', ms=3, color='C0',
+                                   label=f'{pb} causes {pa}')
+                        ax_gp.axhline(0.05, color='r', linestyle='--', lw=1, label='α = 0.05')
+                        ax_gp.set_xlabel("Time (Window End)")
+                        ax_gp.set_ylabel("p-value")
+                        ax_gp.set_ylim([-0.05, 1.05])
+                        ax_gp.legend(fontsize=8)
+                        ax_gp.grid(True, linestyle='--', alpha=0.4)
+                        st.pyplot(fig_gp)
+                        plt.close(fig_gp)
+                    else:
+                        st.info("Granger causality could not be computed for these windows.")
+
+                with row2_col2:
+                    st.markdown("**Rolling Granger Causality: Linear Fit (ΔR²)**")
+                    if not g_ab.empty and not g_ba.empty:
+                        fig_gf, ax_gf = plt.subplots(figsize=(6, 4))
+                        ax_gf.plot(g_ab['Time'], g_ab['DeltaR2'], marker='o', ms=3, color='C1',
+                                   label=f'{pa} causes {pb}')
+                        ax_gf.plot(g_ba['Time'], g_ba['DeltaR2'], marker='s', ms=3, color='C0',
+                                   label=f'{pb} causes {pa}')
+                        ax_gf.axhline(0, color='gray', linestyle=':', lw=1)
+                        ax_gf.set_xlabel("Time (Window End)")
+                        ax_gf.set_ylabel("ΔR² (Unrestricted − Restricted)")
+                        ax_gf.legend(fontsize=8)
+                        ax_gf.grid(True, linestyle='--', alpha=0.4)
+                        st.pyplot(fig_gf)
+                        plt.close(fig_gf)
+                    else:
+                        st.info("Linear fit could not be computed for these windows.")
+
+                st.caption(
+                    f"ΔR² is the increase in R² when {pb}'s (or {pa}'s) own-lag model also gets the "
+                    f"other variable's lagged values — the same nested-model comparison the Granger "
+                    f"F-test (left) is built on, so the two panels are two views of one test: "
+                    f"significance (p-value) vs. magnitude (ΔR²)."
+                )
 
 
 # ==========================================
