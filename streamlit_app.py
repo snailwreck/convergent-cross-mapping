@@ -380,13 +380,6 @@ with tab1:
     # ==========================================
     st.markdown("---")
     st.header("Rolling Window Analysis (Full Time Series)")
-    st.markdown(
-        "Slides a fixed-size window across the **entire** Lorenz series (independent of the "
-        "window selected above) and recomputes pairwise correlation, Granger causality, and "
-        "CCM skill at each window position for all three variable pairs — showing how these "
-        "relationships evolve over time, e.g. as the trajectory switches between the two lobes "
-        "of the attractor."
-    )
 
     n_windows_est = max(0, (num_points - roll_window_size) // roll_step + 1)
     st.caption(
@@ -526,13 +519,6 @@ with tab1:
                         plt.close(fig_gf)
                     else:
                         st.info("Linear fit could not be computed for these windows.")
-
-                st.caption(
-                    f"ΔR² is the increase in R² when {pb}'s (or {pa}'s) own-lag model also gets the "
-                    f"other variable's lagged values — the same nested-model comparison the Granger "
-                    f"F-test (left) is built on, so the two panels are two views of one test: "
-                    f"significance (p-value) vs. magnitude (ΔR²)."
-                )
 
 
 # ==========================================
