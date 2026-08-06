@@ -303,10 +303,10 @@ with tab1:
                     st.markdown("---")
                     st.subheader(f"Univariate and Bivariate Autoregressive Models (Predicting {v2})")
 
-                    gc_12 = grangercausalitytests(df_lorenz_window[[v2, v1]], maxlag=max_lag, verbose=False)
+                    gc_12 = grangercausalitytests(df_lorenz_window[[v2, v1]], maxlag=max_lag)
                     p_values_12 = [gc_12[lag][0]['ssr_ftest'][1] for lag in range(1, max_lag + 1)]
                     
-                    gc_21 = grangercausalitytests(df_lorenz_window[[v1, v2]], maxlag=max_lag, verbose=False)
+                    gc_21 = grangercausalitytests(df_lorenz_window[[v1, v2]], maxlag=max_lag)
                     p_values_21 = [gc_21[lag][0]['ssr_ftest'][1] for lag in range(1, max_lag + 1)]
                     
                     models_tuple = gc_12[max_lag][1]
