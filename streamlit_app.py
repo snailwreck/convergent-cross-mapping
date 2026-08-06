@@ -126,7 +126,7 @@ max_lag = st.sidebar.slider("Max Lag for Analysis", min_value=1, max_value=30, v
 bin_min, bin_max = st.sidebar.slider(
     "Bin Range for Info Theory Graphs", 
     min_value=5, 
-    max_value=1000, 
+    max_value=250, 
     value=(5, 50), 
     step=5
 )
