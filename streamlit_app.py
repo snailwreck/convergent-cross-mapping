@@ -293,6 +293,76 @@ with tab1:
                 except Exception as e:
                     st.error(f"Could not compute Granger Causality (likely due to data alignment/stationarity limitations): {e}")
 
+                # --- Transfer Entropy (IDTxl) Section ---
+                st.markdown("---")
+                st.subheader("Transfer Entropy via IDTxl")
+                st.write("Measures the reduction in uncertainty of the target variable when the past of the source variable is known, given the target's own past.")
+
+                if st.button(f"Run Transfer Entropy Analysis ({v1} & {v2})"):
+                    with st.spinner("Calculating Bivariate Transfer Entropy... This may take a moment."):
+                        try:
+                            # 1. Format data for IDTxl (processes x samples)
+                            # Using dim_order='ps' means the first axis is processes, the second is samples.
+                            te_data_array = np.vstack([df_lorenz_window[v1].values, df_lorenz_window[v2].values])
+                            
+                            # Create the IDTxl Data object
+                            idtxl_data = Data(te_data_array, dim_order='ps', normalise=True)
+                            
+                            # 2. Configure Bivariate TE settings
+                            # We use JidtKraskovCMI since the Lorenz system data is continuous.
+                            # Permutations are reduced slightly here for interactive Streamlit performance.
+                            settings = {
+                                'cmi_estimator': 'JidtKraskovCMI',
+                                'max_lag_sources': 5,
+                                'min_lag_sources': 1,
+                                'n_perm_max_stat': 150,
+                                'n_perm_min_stat': 150,
+                                'n_perm_omnibus': 300,
+                                'n_perm_max_seq': 300,
+                                'verbose': False
+                            }
+                            
+                            # 3. Run Network Analysis
+                            bivariate_te = BivariateTE()
+                            
+                            # targets=[0, 1] and sources=[0, 1] will test all pairs (0->1 and 1->0)
+                            te_results = bivariate_te.analyse_network(
+                                settings=settings, 
+                                data=idtxl_data, 
+                                targets="all", 
+                                sources="all"
+                            )
+                            
+                            st.success("Transfer Entropy calculation complete!")
+                            
+                            # 4. Display Adjacency Matrix Results
+                            col_te1, col_te2 = st.columns(2)
+                            
+                            # Fetch the binary adjacency matrix (1 = significant TE, 0 = no significant TE)
+                            # and the raw TE values (weights)
+                            adj_matrix = te_results.get_adjacency_matrix(weights='te_value', header=False)
+                            
+                            with col_te1:
+                                st.markdown(f"### {v1} $\\rightarrow$ {v2}")
+                                # Source 0 (v1) -> Target 1 (v2)
+                                te_val_0_to_1 = adj_matrix[0, 1]
+                                if te_val_0_to_1 > 0:
+                                    st.metric(f"TE ({v1} causes {v2})", f"{te_val_0_to_1:.4f} nats")
+                                else:
+                                    st.write(f"No statistically significant TE from {v1} to {v2}")
+
+                            with col_te2:
+                                st.markdown(f"### {v2} $\\rightarrow$ {v1}")
+                                # Source 1 (v2) -> Target 0 (v1)
+                                te_val_1_to_0 = adj_matrix[1, 0]
+                                if te_val_1_to_0 > 0:
+                                    st.metric(f"TE ({v2} causes {v1})", f"{te_val_1_to_0:.4f} nats")
+                                else:
+                                    st.write(f"No statistically significant TE from {v2} to {v1}")
+                                    
+                        except Exception as e:
+                            st.error(f"Error calculating Transfer Entropy: {e}")
+                            st.info("Make sure you have Java configured correctly. IDTxl's continuous estimators rely on JIDT, which requires a working JRE/JDK installation accessible by Python via JPype.")
 
 # ==========================================
 # TAB 2: COUPLED LOGISTIC MAP

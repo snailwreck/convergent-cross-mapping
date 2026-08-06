@@ -5,3 +5,5 @@ matplotlib
 scipy
 pyEDM
 statsmodels
+idtxl.data
+idtxl.bivariate_te
