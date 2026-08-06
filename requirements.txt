@@ -6,3 +6,4 @@ scipy
 pyEDM
 statsmodels
 idtxl
+JPype1
