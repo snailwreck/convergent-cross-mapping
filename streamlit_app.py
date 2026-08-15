@@ -50,8 +50,8 @@ def calc_transfer_entropy(x, y, lag=1, bins=2):
 
 # --- Functions ---
 @st.cache_data
-def generate_lorenz_ensemble(sigma, rho, beta, t_max, num_points, perturbation_scale=1e-2):
-    """Generates a base trajectory and 10 perturbed trajectories."""
+def generate_lorenz_ensemble(sigma, rho, beta, t_max, num_points, perturbation_scale=0.1):
+    """Generates a base trajectory and 10 perturbed trajectories with wider separation."""
     def lorenz_system(t, state):
         x, y, z = state
         return [sigma * (y - x), x * (rho - z) - y, x * y - beta * z]
@@ -60,7 +60,7 @@ def generate_lorenz_ensemble(sigma, rho, beta, t_max, num_points, perturbation_s
     transient_sol = solve_ivp(lorenz_system, [0, 50.0], [1.0, 1.0, 1.0])
     base_state = transient_sol.y[:, -1]
     
-    # 2. Create ensemble starting points (Base + 10 perturbed)
+    # 2. Create ensemble starting points (Base + 10 perturbed) with a larger default spread
     states = [base_state]
     np.random.seed(42) # Consistent noise for visual stability
     for _ in range(10):
@@ -110,10 +110,10 @@ with st.sidebar.expander("Lorenz Parameters (Tab 1)", expanded=True):
     perturbation_scale = st.sidebar.number_input(
         "Initial Perturbation Spread", 
         min_value=0.0001, 
-        max_value=1.0, 
-        value=0.01, 
+        max_value=5.0, 
+        value=0.1, 
         format="%.4f",
-        help="How far apart the starting points are generated around the base point."
+        help="How far apart the starting points are generated around the base point. Increased default for better visibility."
     )
 
 with st.sidebar.expander("Logistic Map Parameters (Tab 2)", expanded=True):
@@ -181,7 +181,7 @@ with tab1:
             color = 'royalblue' if i == 0 else 'gray'
             lw = 1.0 if i == 0 else 0.5
             ax1.plot(df[v1], df[v2], lw=lw, color=color, alpha=alpha)
-            ax1.scatter(df[v1].iloc[0], df[v2].iloc[0], color='red', s=20, zorder=5)
+            ax1.scatter(df[v1].iloc[0], df[v2].iloc[0], color='red', s=30, zorder=5)
 
         ax1.set_xlabel(v1)
         ax1.set_ylabel(v2)
@@ -199,8 +199,8 @@ with tab1:
             ax2.plot(df['Time'], df[v1], color='dodgerblue', lw=lw, alpha=alpha, label=v1 if i==0 else "")
             ax2.plot(df['Time'], df[v2], color='orange', lw=lw, alpha=alpha, label=v2 if i==0 else "")
             
-            ax2.scatter(df['Time'].iloc[0], df[v1].iloc[0], color='red', s=15, zorder=5)
-            ax2.scatter(df['Time'].iloc[0], df[v2].iloc[0], color='red', s=15, zorder=5)
+            ax2.scatter(df['Time'].iloc[0], df[v1].iloc[0], color='red', s=25, zorder=5)
+            ax2.scatter(df['Time'].iloc[0], df[v2].iloc[0], color='red', s=25, zorder=5)
 
         ax2.set_xlabel("Time (Index)")
         ax2.set_ylabel("Value")
@@ -447,5 +447,5 @@ with tab2:
                 ax_xy_m.set_xlabel("Observed Y")
                 ax_xy_m.set_ylabel("Predicted Y from M_X")
                 ax_xy_m.set_title(f"Cross-mapping Performance\nρ = {corr_yx_m:.3f}")
-                st.pyplot(fig_yx_m)
+                st.pyplot(fig_xy_m)
                 plt.close()
