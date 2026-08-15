@@ -106,7 +106,7 @@ with st.sidebar.expander("Lorenz Parameters (Tab 1)", expanded=True):
     beta = st.sidebar.slider("Beta (β)", 1.0, 5.0, 2.666)
     t_max = st.sidebar.number_input("Max Time (t)", 10.0, 100.0, 40.0)
     
-    st.markdown("**Ensemble Settings**")
+    st.markdown("**Settings**")
     perturbation_scale = st.sidebar.number_input(
         "Initial Perturbation Spread", 
         min_value=0.0001, 
@@ -137,15 +137,13 @@ bin_steps = [2, 4, 8, 16]
 # --- Main Application ---
 st.title("Convergent Cross Mapping (CCM) & Information Theory")
 
-tab1, tab2 = st.tabs(["Lorenz Attractor (Ensemble)", "Coupled Logistic Map"])
+tab1, tab2 = st.tabs(["Lorenz Attractor", "Coupled Logistic Map"])
 
 # ==========================================
 # TAB 1: LORENZ ATTRACTOR
 # ==========================================
 with tab1:
-    st.header("Lorenz Attractor (Ensemble Simulation)")
-    st.markdown("We generate a base trajectory and **10 adjacent trajectories** starting nearby to evaluate structural causality across diverging paths.")
-    
+    st.header("Lorenz Attractor")
     dfs_lorenz = generate_lorenz_ensemble(sigma, rho, beta, t_max, num_points, perturbation_scale)
     df_base_full = dfs_lorenz[0]
 
@@ -181,7 +179,7 @@ with tab1:
             color = 'royalblue' if i == 0 else 'gray'
             lw = 1.0 if i == 0 else 0.5
             ax1.plot(df[v1], df[v2], lw=lw, color=color, alpha=alpha)
-            ax1.scatter(df[v1].iloc[0], df[v2].iloc[0], color='red', s=30, zorder=5)
+            ax1.scatter(df[v1].iloc[0], df[v2].iloc[0], color='red', s=5, zorder=5)
 
         ax1.set_xlabel(v1)
         ax1.set_ylabel(v2)
@@ -198,9 +196,6 @@ with tab1:
             
             ax2.plot(df['Time'], df[v1], color='dodgerblue', lw=lw, alpha=alpha, label=v1 if i==0 else "")
             ax2.plot(df['Time'], df[v2], color='orange', lw=lw, alpha=alpha, label=v2 if i==0 else "")
-            
-            ax2.scatter(df['Time'].iloc[0], df[v1].iloc[0], color='red', s=25, zorder=5)
-            ax2.scatter(df['Time'].iloc[0], df[v2].iloc[0], color='red', s=25, zorder=5)
 
         ax2.set_xlabel("Time (Index)")
         ax2.set_ylabel("Value")
@@ -209,7 +204,7 @@ with tab1:
 
     # --- Metrics Visualization (Ensemble) ---
     st.markdown("---")
-    st.subheader(f"Ensemble Information Theory Metrics vs. Histogram Bins ({v1} and {v2})")
+    st.subheader(f"Information Theory Metrics vs. Histogram Bins ({v1} and {v2})")
     
     mi_matrix = np.zeros((len(dfs_window), len(bin_steps)))
     te_12_matrix = np.zeros((len(dfs_window), len(bin_steps)))
@@ -238,16 +233,16 @@ with tab1:
     
     ax_info.set_xlabel("Number of Equal-Mass Bins")
     ax_info.set_ylabel("Information (Bits)")
-    ax_info.set_title("Information Theory Metrics (Shaded region represents ensemble spread)")
+    ax_info.set_title("Information Theory Metrics")
     ax_info.legend()
     ax_info.grid(True, linestyle='--', alpha=0.7)
     st.pyplot(fig_info)
     plt.close()
 
     st.markdown("---")
-    st.subheader(f"Ensemble CCM Analysis: {v1} and {v2} Coupling")
+    st.subheader(f"CCM Analysis: {v1} and {v2} Coupling")
 
-    if st.button(f"Run Lorenz Analysis on Ensemble ({v1} & {v2})"):
+    if st.button(f"Run Lorenz Analysis ({v1} & {v2})"):
         if window_len < 100:
             st.error("The selected time window is too small for meaningful analysis. Please select a wider range.")
         else:
@@ -289,7 +284,7 @@ with tab1:
                 
                 ax3.set_xlabel("Library Size (L)")
                 ax3.set_ylabel("Correlation (ρ)")
-                ax3.set_title(f"Ensemble CCM Convergence ({v1} vs {v2})")
+                ax3.set_title(f"CCM Convergence ({v1} vs {v2})")
                 ax3.legend()
                 ax3.grid(True, linestyle='--', alpha=0.7)
                 ax3.set_ylim([-0.1, 1.1])
