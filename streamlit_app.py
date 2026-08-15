@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.integrate import solve_ivp
+from scipy.signal import find_peaks  # ADDED for cycle calculations
 import pyEDM 
 from statsmodels.tsa.stattools import grangercausalitytests
 from sklearn.metrics import mutual_info_score
@@ -14,7 +15,6 @@ st.set_page_config(page_title="CCM", layout="wide")
 @st.cache_data
 def calc_mutual_information(x, y, bins=2):
     """Calculates Mutual Information using equal-mass (quantile) binning."""
-    # Generate bin edges based on quantiles to ensure equal mass in each bin
     x_edges = np.unique(np.quantile(x, np.linspace(0, 1, bins + 1)))
     y_edges = np.unique(np.quantile(y, np.linspace(0, 1, bins + 1)))
     
@@ -28,35 +28,27 @@ def calc_transfer_entropy(x, y, lag=1, bins=2):
     y_past = y[:-lag]
     x_past = x[:-lag]
     
-    # Generate bin edges based on quantiles to ensure equal mass in each bin
     yt_edges = np.unique(np.quantile(y_t, np.linspace(0, 1, bins + 1)))
     yp_edges = np.unique(np.quantile(y_past, np.linspace(0, 1, bins + 1)))
     xp_edges = np.unique(np.quantile(x_past, np.linspace(0, 1, bins + 1)))
     
-    # 3D histogram using the quantile edges
     c_3d, _ = np.histogramdd(np.vstack([y_t, y_past, x_past]).T, bins=[yt_edges, yp_edges, xp_edges])
     p_3d = c_3d / np.sum(c_3d)
     
-    # Calculate marginal distributions
     p_y_past_x_past = np.sum(p_3d, axis=0)
     p_y_t_y_past = np.sum(p_3d, axis=2)
     p_y_past = np.sum(p_y_past_x_past, axis=1)
     
-    # Mask zeros to avoid log(0) errors
     p_3d_safe = np.where(p_3d > 0, p_3d, 1e-10)
     p_y_past_x_past_safe = np.where(p_y_past_x_past > 0, p_y_past_x_past, 1e-10)
     p_y_t_y_past_safe = np.where(p_y_t_y_past > 0, p_y_t_y_past, 1e-10)
     p_y_past_safe = np.where(p_y_past > 0, p_y_past, 1e-10)
     
-    # Shape correction to match the actual number of generated bins 
-    # (np.unique might reduce bin count if data is perfectly flat, but safe for chaotic series)
     b_yt, b_yp, b_xp = c_3d.shape
     
-    # Reshape for broadcasting
     term1 = p_3d_safe * p_y_past_safe.reshape(1, b_yp, 1)
     term2 = p_y_t_y_past_safe.reshape(b_yt, b_yp, 1) * p_y_past_x_past_safe.reshape(1, b_yp, b_xp)
     
-    # Sum over the joint probability distribution
     te = np.sum(p_3d * np.log2(term1 / term2))
     return max(0.0, te)
 
@@ -120,7 +112,7 @@ with st.sidebar.expander("Logistic Map Parameters (Tab 2)", expanded=True):
 
 st.sidebar.header("Global Settings")
 
-num_points = st.sidebar.slider("Number of Data Points (Length)", 500, 10000, 2000, step=100)
+num_points = st.sidebar.slider("Number of Data Points (Length)", 500, 5000, 2000, step=100)
 
 absolute_max_lib = num_points - 50
 default_lib_value = min(500, absolute_max_lib)
@@ -185,7 +177,7 @@ with tab1:
         ax2.legend()
         st.pyplot(fig2)
 
-    # --- ADDED: Equal-Mass Histogram Distribution ---
+    # --- Equal-Mass Histogram Distribution ---
     st.markdown("---")
     st.subheader("Equal-Mass Histogram Distributions")
     selected_bin_viz = st.selectbox("Select Fixed Bin Size for Visualization:", bin_steps, index=2)
@@ -213,13 +205,50 @@ with tab1:
     st.pyplot(fig_hist)
     plt.close()
 
-    # --- Metrics ---
+    # --- ADDED: Dynamics Calculations (Cycles and Lobe Switches) ---
     st.markdown("---")
-    st.subheader("Statistical & Information Theory Metrics (Selected Window)")
-
-    corr_matrix = df_lorenz_window[['X', 'Y', 'Z']].corr()
-    st.metric(f"Pearson Correlation ({v1}, {v2})", f"{corr_matrix.loc[v1, v2]:.3f}")
+    st.subheader("Attractor Dynamics & Statistics (Selected Window)")
     
+    z_vals = df_lorenz_window['Z'].values
+    x_vals = df_lorenz_window['X'].values
+    
+    # 1. Count loops/cycles by finding peaks in Z
+    peaks, _ = find_peaks(z_vals)
+    num_cycles = len(peaks)
+    
+    # 2. Typical cycle time (average steps between Z peaks)
+    if num_cycles > 1:
+        avg_cycle_steps = np.mean(np.diff(peaks))
+    else:
+        avg_cycle_steps = 0
+        
+    # 3. Loops before moving to the other lobe
+    # A lobe switch happens when X crosses 0
+    zero_crossings = np.where(np.diff(np.sign(x_vals)))[0]
+    
+    if len(zero_crossings) > 0:
+        loops_per_lobe = []
+        start_idx = 0
+        for zc in zero_crossings:
+            # Count how many Z peaks happened before the X zero-crossing
+            peaks_in_lobe = np.sum((peaks >= start_idx) & (peaks < zc))
+            loops_per_lobe.append(peaks_in_lobe)
+            start_idx = zc
+        # Add the final segment
+        loops_per_lobe.append(np.sum(peaks >= start_idx))
+        avg_loops_per_lobe = np.mean(loops_per_lobe)
+    else:
+        avg_loops_per_lobe = num_cycles
+
+    col_d1, col_d2, col_d3, col_d4 = st.columns(4)
+    corr_matrix = df_lorenz_window[['X', 'Y', 'Z']].corr()
+    
+    col_d1.metric(f"Pearson Corr ({v1}, {v2})", f"{corr_matrix.loc[v1, v2]:.3f}")
+    col_d2.metric("Total Cycles (Loops)", f"{num_cycles}")
+    col_d3.metric("Avg. Cycle Time (Steps)", f"{avg_cycle_steps:.1f}")
+    col_d4.metric("Avg. Loops Before Switch", f"{avg_loops_per_lobe:.2f}")
+
+    # --- Metrics Visualization ---
     v1_data = df_lorenz_window[v1].values
     v2_data = df_lorenz_window[v2].values
     
@@ -234,7 +263,6 @@ with tab1:
             te_21_vals.append(calc_transfer_entropy(v2_data, v1_data, lag=1, bins=b))
 
     fig_info, ax_info = plt.subplots(figsize=(10, 4))
-    # Using categorical plotting approach since bin_steps are non-linear
     ax_info.plot([str(b) for b in bin_steps], mi_vals, marker='o', label='Mutual Info (MI)', color='green')
     ax_info.plot([str(b) for b in bin_steps], te_12_vals, marker='s', label=f'TE: {v1} -> {v2}', color='orange')
     ax_info.plot([str(b) for b in bin_steps], te_21_vals, marker='^', label=f'TE: {v2} -> {v1}', color='purple')
