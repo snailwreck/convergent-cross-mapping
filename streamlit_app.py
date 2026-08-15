@@ -10,26 +10,31 @@ from sklearn.metrics import mutual_info_score
 # --- Page Configuration ---
 st.set_page_config(page_title="CCM", layout="wide")
 
-# --- Information Theory Functions ---
+# --- Information Theory Functions (Updated for Equal-Mass Binning) ---
 @st.cache_data
-def calc_mutual_information(x, y, bins=20):
-    """Calculates Mutual Information between two continuous variables using binning."""
-    c_xy = np.histogram2d(x, y, bins)[0]
+def calc_mutual_information(x, y, bins=2):
+    """Calculates Mutual Information using equal-mass (quantile) binning."""
+    # Generate bin edges based on quantiles to ensure equal mass in each bin
+    x_edges = np.unique(np.quantile(x, np.linspace(0, 1, bins + 1)))
+    y_edges = np.unique(np.quantile(y, np.linspace(0, 1, bins + 1)))
+    
+    c_xy = np.histogram2d(x, y, bins=[x_edges, y_edges])[0]
     return mutual_info_score(None, None, contingency=c_xy)
 
 @st.cache_data
-def calc_transfer_entropy(x, y, lag=1, bins=10):
-    """
-    Calculates Transfer Entropy from x to y: TE(X -> Y).
-    Measures how much knowing the past of X reduces uncertainty about the future of Y,
-    beyond what is already known from the past of Y.
-    """
+def calc_transfer_entropy(x, y, lag=1, bins=2):
+    """Calculates Transfer Entropy using equal-mass (quantile) binning."""
     y_t = y[lag:]
     y_past = y[:-lag]
     x_past = x[:-lag]
     
-    # 3D histogram for the joint distribution (y_t, y_past, x_past)
-    c_3d, _ = np.histogramdd(np.vstack([y_t, y_past, x_past]).T, bins=bins)
+    # Generate bin edges based on quantiles to ensure equal mass in each bin
+    yt_edges = np.unique(np.quantile(y_t, np.linspace(0, 1, bins + 1)))
+    yp_edges = np.unique(np.quantile(y_past, np.linspace(0, 1, bins + 1)))
+    xp_edges = np.unique(np.quantile(x_past, np.linspace(0, 1, bins + 1)))
+    
+    # 3D histogram using the quantile edges
+    c_3d, _ = np.histogramdd(np.vstack([y_t, y_past, x_past]).T, bins=[yt_edges, yp_edges, xp_edges])
     p_3d = c_3d / np.sum(c_3d)
     
     # Calculate marginal distributions
@@ -43,13 +48,16 @@ def calc_transfer_entropy(x, y, lag=1, bins=10):
     p_y_t_y_past_safe = np.where(p_y_t_y_past > 0, p_y_t_y_past, 1e-10)
     p_y_past_safe = np.where(p_y_past > 0, p_y_past, 1e-10)
     
+    # Shape correction to match the actual number of generated bins 
+    # (np.unique might reduce bin count if data is perfectly flat, but safe for chaotic series)
+    b_yt, b_yp, b_xp = c_3d.shape
+    
     # Reshape for broadcasting
-    term1 = p_3d_safe * p_y_past_safe.reshape(1, bins, 1)
-    term2 = p_y_t_y_past_safe.reshape(bins, bins, 1) * p_y_past_x_past_safe.reshape(1, bins, bins)
+    term1 = p_3d_safe * p_y_past_safe.reshape(1, b_yp, 1)
+    term2 = p_y_t_y_past_safe.reshape(b_yt, b_yp, 1) * p_y_past_x_past_safe.reshape(1, b_yp, b_xp)
     
     # Sum over the joint probability distribution
     te = np.sum(p_3d * np.log2(term1 / term2))
-    # Ensure non-negative due to potential floating point errors
     return max(0.0, te)
 
 # --- Functions ---
@@ -85,7 +93,6 @@ def generate_logistic_data(rx, ry, beta_xy, beta_yx, num_points):
         x[t+1] = x[t] * (rx - rx * x[t] - beta_xy * y[t])
         y[t+1] = y[t] * (ry - ry * y[t] - beta_yx * x[t])
         
-        # Cap to prevent math explosion if sliders pushed too far
         x[t+1] = max(0, min(1, x[t+1]))
         y[t+1] = max(0, min(1, y[t+1]))
         
@@ -122,15 +129,8 @@ max_lib_size = st.sidebar.slider("Max Library Size", 100, absolute_max_lib, defa
 lib_step = st.sidebar.number_input("Library Step Size", 10, 200, 20)
 max_lag = st.sidebar.slider("Max Lag for Analysis", min_value=1, max_value=30, value=10, step=1)
 
-# ADDED: Bin Range for Graphs
-bin_min, bin_max = st.sidebar.slider(
-    "Bin Range for Info Theory Graphs", 
-    min_value=5, 
-    max_value=250, 
-    value=(5, 50), 
-    step=5
-)
-bin_steps = np.arange(bin_min, bin_max + 1, 5)
+# FIXED BIN CHOICES
+bin_steps = [2, 4, 8, 16]
 
 # --- Main Application ---
 st.title("Convergent Cross Mapping (CCM) & Information Theory")
@@ -185,12 +185,41 @@ with tab1:
         ax2.legend()
         st.pyplot(fig2)
 
+    # --- ADDED: Equal-Mass Histogram Distribution ---
+    st.markdown("---")
+    st.subheader("Equal-Mass Histogram Distributions")
+    selected_bin_viz = st.selectbox("Select Fixed Bin Size for Visualization:", bin_steps, index=2)
+    
+    x_edges = np.unique(np.quantile(df_lorenz_window['X'], np.linspace(0, 1, selected_bin_viz + 1)))
+    y_edges = np.unique(np.quantile(df_lorenz_window['Y'], np.linspace(0, 1, selected_bin_viz + 1)))
+    z_edges = np.unique(np.quantile(df_lorenz_window['Z'], np.linspace(0, 1, selected_bin_viz + 1)))
+    
+    fig_hist, axes = plt.subplots(1, 3, figsize=(15, 4))
+    
+    axes[0].hist(df_lorenz_window['X'], bins=x_edges, edgecolor='black', color='skyblue')
+    axes[0].set_title(f"X Distribution\n(Equal Mass, Bins={selected_bin_viz})")
+    axes[0].set_ylabel("Count (Mass in Bin)")
+    
+    axes[1].hist(df_lorenz_window['Y'], bins=y_edges, edgecolor='black', color='lightgreen')
+    axes[1].set_title(f"Y Distribution\n(Equal Mass, Bins={selected_bin_viz})")
+    
+    axes[2].hist(df_lorenz_window['Z'], bins=z_edges, edgecolor='black', color='salmon')
+    axes[2].set_title(f"Z Distribution\n(Equal Mass, Bins={selected_bin_viz})")
+    
+    for ax in axes:
+        ax.set_xlabel("Value")
+        ax.grid(axis='y', linestyle='--', alpha=0.7)
+    
+    st.pyplot(fig_hist)
+    plt.close()
+
+    # --- Metrics ---
+    st.markdown("---")
     st.subheader("Statistical & Information Theory Metrics (Selected Window)")
 
     corr_matrix = df_lorenz_window[['X', 'Y', 'Z']].corr()
     st.metric(f"Pearson Correlation ({v1}, {v2})", f"{corr_matrix.loc[v1, v2]:.3f}")
     
-    # Calculate Info Theory metrics over bins
     v1_data = df_lorenz_window[v1].values
     v2_data = df_lorenz_window[v2].values
     
@@ -198,18 +227,19 @@ with tab1:
     te_12_vals = []
     te_21_vals = []
     
-    with st.spinner(f"Calculating Information Theory metrics over {len(bin_steps)} bin settings..."):
+    with st.spinner(f"Calculating Information Theory metrics over bin settings {bin_steps}..."):
         for b in bin_steps:
             mi_vals.append(calc_mutual_information(v1_data, v2_data, bins=b))
             te_12_vals.append(calc_transfer_entropy(v1_data, v2_data, lag=1, bins=b))
             te_21_vals.append(calc_transfer_entropy(v2_data, v1_data, lag=1, bins=b))
 
     fig_info, ax_info = plt.subplots(figsize=(10, 4))
-    ax_info.plot(bin_steps, mi_vals, marker='o', label='Mutual Info (MI)', color='green')
-    ax_info.plot(bin_steps, te_12_vals, marker='s', label=f'TE: {v1} -> {v2}', color='orange')
-    ax_info.plot(bin_steps, te_21_vals, marker='^', label=f'TE: {v2} -> {v1}', color='purple')
+    # Using categorical plotting approach since bin_steps are non-linear
+    ax_info.plot([str(b) for b in bin_steps], mi_vals, marker='o', label='Mutual Info (MI)', color='green')
+    ax_info.plot([str(b) for b in bin_steps], te_12_vals, marker='s', label=f'TE: {v1} -> {v2}', color='orange')
+    ax_info.plot([str(b) for b in bin_steps], te_21_vals, marker='^', label=f'TE: {v2} -> {v1}', color='purple')
     
-    ax_info.set_xlabel("Number of Bins")
+    ax_info.set_xlabel("Number of Equal-Mass Bins")
     ax_info.set_ylabel("Information (Bits)")
     ax_info.set_title(f"Information Theory Metrics vs. Histogram Bins ({v1} and {v2})")
     ax_info.legend()
@@ -300,9 +330,6 @@ with tab1:
                 st.subheader("Granger Causality Comparison")
                 
                 try:
-                    st.markdown("---")
-                    st.subheader(f"Univariate and Bivariate Autoregressive Models (Predicting {v2})")
-
                     gc_12 = grangercausalitytests(df_lorenz_window[[v2, v1]], maxlag=max_lag)
                     p_values_12 = [gc_12[lag][0]['ssr_ftest'][1] for lag in range(1, max_lag + 1)]
                     
@@ -310,8 +337,8 @@ with tab1:
                     p_values_21 = [gc_21[lag][0]['ssr_ftest'][1] for lag in range(1, max_lag + 1)]
                     
                     models_tuple = gc_12[max_lag][1]
-                    restricted_model = models_tuple[0]    # Univariate AR (Past Y only)
-                    unrestricted_model = models_tuple[1]  # Bivariate AR (Past Y + Past X)
+                    restricted_model = models_tuple[0]    
+                    unrestricted_model = models_tuple[1]  
 
                     actual_target = unrestricted_model.model.endog
                     pred_restricted = restricted_model.fittedvalues
@@ -320,17 +347,15 @@ with tab1:
                     time_axis = df_lorenz_window['Time'].iloc[max_lag:].values
 
                     fig_fit, ax_fit = plt.subplots(figsize=(10, 4))
-
                     ax_fit.plot(time_axis, actual_target, label=f"Actual {v2}", color='black', lw=1.5, alpha=0.6)
                     ax_fit.plot(time_axis, pred_restricted, label=f"Univariate AR (Uses past {v2} only)", color='red', linestyle='dashed', alpha=0.7)
                     ax_fit.plot(time_axis, pred_unrestricted, label=f"Bivariate AR (Uses past {v2} & {v1})", color='dodgerblue', linestyle='dotted', lw=2)
 
                     ax_fit.set_xlabel("Time")
                     ax_fit.set_ylabel(v2)
-                    ax_fit.set_title(f"Granger Linear Fits at Lag {max_lag} (Full Time Series)")
+                    ax_fit.set_title(f"Granger Linear Fits at Lag {max_lag}")
                     ax_fit.legend()
                     ax_fit.grid(True, linestyle='--', alpha=0.5)
-
                     st.pyplot(fig_fit)
                     plt.close()
 
@@ -348,10 +373,8 @@ with tab1:
                     st.pyplot(fig_gc)
                     plt.close()
 
-                    
                 except Exception as e:
                     st.error(f"Could not compute Granger Causality (likely due to data alignment/stationarity limitations): {e}")
-
 
 # ==========================================
 # TAB 2: COUPLED LOGISTIC MAP
@@ -390,18 +413,18 @@ with tab2:
     x_data_map = df_map['X'].values
     y_data_map = df_map['Y'].values
 
-    with st.spinner(f"Calculating Information Theory metrics over {len(bin_steps)} bin settings..."):
+    with st.spinner(f"Calculating Information Theory metrics over bin settings {bin_steps}..."):
         for b in bin_steps:
             mi_vals_map.append(calc_mutual_information(x_data_map, y_data_map, bins=b))
             te_x_y_vals.append(calc_transfer_entropy(x_data_map, y_data_map, lag=1, bins=b))
             te_y_x_vals.append(calc_transfer_entropy(y_data_map, x_data_map, lag=1, bins=b))
 
     fig_info_map, ax_info_map = plt.subplots(figsize=(10, 4))
-    ax_info_map.plot(bin_steps, mi_vals_map, marker='o', label='Mutual Info (MI)', color='green')
-    ax_info_map.plot(bin_steps, te_x_y_vals, marker='s', label='TE: X -> Y', color='orange')
-    ax_info_map.plot(bin_steps, te_y_x_vals, marker='^', label='TE: Y -> X', color='purple')
+    ax_info_map.plot([str(b) for b in bin_steps], mi_vals_map, marker='o', label='Mutual Info (MI)', color='green')
+    ax_info_map.plot([str(b) for b in bin_steps], te_x_y_vals, marker='s', label='TE: X -> Y', color='orange')
+    ax_info_map.plot([str(b) for b in bin_steps], te_y_x_vals, marker='^', label='TE: Y -> X', color='purple')
     
-    ax_info_map.set_xlabel("Number of Bins")
+    ax_info_map.set_xlabel("Number of Equal-Mass Bins")
     ax_info_map.set_ylabel("Information (Bits)")
     ax_info_map.set_title("Information Theory Metrics vs. Histogram Bins (Logistic Map)")
     ax_info_map.legend()
