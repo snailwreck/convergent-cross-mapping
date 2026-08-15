@@ -13,14 +13,14 @@ st.set_page_config(page_title="CCM", layout="wide")
 
 # --- Information Theory Functions ---
 @st.cache_data
-def calc_mutual_information(x, y, bins=2):
+def calc_mutual_information(x, y, bins=10):
     x_edges = np.unique(np.quantile(x, np.linspace(0, 1, bins + 1)))
     y_edges = np.unique(np.quantile(y, np.linspace(0, 1, bins + 1)))
     c_xy = np.histogram2d(x, y, bins=[x_edges, y_edges])[0]
     return mutual_info_score(None, None, contingency=c_xy)
 
 @st.cache_data
-def calc_transfer_entropy(x, y, lag=1, bins=2):
+def calc_transfer_entropy(x, y, lag=1, bins=10):
     y_t = y[lag:]
     y_past = y[:-lag]
     x_past = x[:-lag]
@@ -115,6 +115,7 @@ with st.sidebar.expander("Lorenz Parameters (Tab 1)", expanded=True):
         format="%.4f",
         help="How far apart the starting points are generated around the base point. Increased default for better visibility."
     )
+    num_cycles = st.sidebar.slider("Number of Cycles", 1, 20, 10, help="Number of cycles/bins configuration reference.")
 
 with st.sidebar.expander("Logistic Map Parameters (Tab 2)", expanded=True):
     rx = st.sidebar.slider("Growth Rate rx", 3.5, 4.0, 3.8, step=0.01)
@@ -132,7 +133,7 @@ max_lib_size = st.sidebar.slider("Max Library Size", 100, absolute_max_lib, defa
 lib_step = st.sidebar.number_input("Library Step Size", 10, 200, 20)
 max_lag = st.sidebar.slider("Max Lag for Analysis", min_value=1, max_value=30, value=10, step=1)
 
-bin_steps = [2, 4, 8, 16]
+bin_steps = [2, 4, 8, 10, 16]
 
 # --- Main Application ---
 st.title("Convergent Cross Mapping (CCM) & Information Theory")
@@ -179,7 +180,7 @@ with tab1:
             color = 'royalblue' if i == 0 else 'gray'
             lw = 1.0 if i == 0 else 0.5
             ax1.plot(df[v1], df[v2], lw=lw, color=color, alpha=alpha)
-            ax1.scatter(df[v1].iloc[0], df[v2].iloc[0], color='red', s=5, zorder=5)
+            ax1.scatter(df[v1].iloc[0], df[v2].iloc[0], color='red', s=30, zorder=5)
 
         ax1.set_xlabel(v1)
         ax1.set_ylabel(v2)
@@ -196,6 +197,9 @@ with tab1:
             
             ax2.plot(df['Time'], df[v1], color='dodgerblue', lw=lw, alpha=alpha, label=v1 if i==0 else "")
             ax2.plot(df['Time'], df[v2], color='orange', lw=lw, alpha=alpha, label=v2 if i==0 else "")
+            
+            ax2.scatter(df['Time'].iloc[0], df[v1].iloc[0], color='red', s=25, zorder=5)
+            ax2.scatter(df['Time'].iloc[0], df[v2].iloc[0], color='red', s=25, zorder=5)
 
         ax2.set_xlabel("Time (Index)")
         ax2.set_ylabel("Value")
@@ -233,7 +237,7 @@ with tab1:
     
     ax_info.set_xlabel("Number of Equal-Mass Bins")
     ax_info.set_ylabel("Information (Bits)")
-    ax_info.set_title("Information Theory Metrics")
+    ax_info.set_title(f"Information Theory Metrics (Configured Cycles: {num_cycles})")
     ax_info.legend()
     ax_info.grid(True, linestyle='--', alpha=0.7)
     st.pyplot(fig_info)
@@ -442,5 +446,5 @@ with tab2:
                 ax_xy_m.set_xlabel("Observed Y")
                 ax_xy_m.set_ylabel("Predicted Y from M_X")
                 ax_xy_m.set_title(f"Cross-mapping Performance\nρ = {corr_yx_m:.3f}")
-                st.pyplot(fig_xy_m)
+                st.pyplot(fig_yx_m)
                 plt.close()
