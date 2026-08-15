@@ -112,7 +112,7 @@ with st.sidebar.expander("Logistic Map Parameters (Tab 2)", expanded=True):
 
 st.sidebar.header("Global Settings")
 
-num_points = st.sidebar.slider("Number of Data Points (Length)", 500, 5000, 2000, step=100)
+num_points = st.sidebar.slider("Number of Data Points (Length)", 500, 10000, 2000, step=100)
 
 absolute_max_lib = num_points - 50
 default_lib_value = min(500, absolute_max_lib)
