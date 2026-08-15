@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.integrate import solve_ivp
-from scipy.signal import find_peaks  # ADDED for cycle calculations
+from scipy.signal import find_peaks
 import pyEDM 
 from statsmodels.tsa.stattools import grangercausalitytests
 from sklearn.metrics import mutual_info_score
@@ -54,15 +54,26 @@ def calc_transfer_entropy(x, y, lag=1, bins=2):
 
 # --- Functions ---
 @st.cache_data
-def generate_lorenz_data(sigma, rho, beta, t_max, num_points):
-    """Generates time series data for the continuous Lorenz attractor."""
+def generate_lorenz_data(sigma, rho, beta, t_max, num_points, phase_offset):
+    """Generates time series data already settled on the Lorenz attractor."""
     def lorenz_system(t, state):
         x, y, z = state
         return [sigma * (y - x), x * (rho - z) - y, x * y - beta * z]
 
-    initial_state = [1.0, 1.0, 1.0]
+    # 1. Burn-in transient period (t=50) to guarantee we are on the attractor
+    transient_sol = solve_ivp(lorenz_system, [0, 50.0], [1.0, 1.0, 1.0])
+    state_on_attractor = transient_sol.y[:, -1]
+    
+    # 2. Apply phase offset to let user pick a specific starting point on the attractor
+    if phase_offset > 0:
+        offset_sol = solve_ivp(lorenz_system, [0, phase_offset], state_on_attractor)
+        start_state = offset_sol.y[:, -1]
+    else:
+        start_state = state_on_attractor
+
+    # 3. Generate the actual data
     t_eval = np.linspace(0, t_max, num_points)
-    solution = solve_ivp(lorenz_system, [0, t_max], initial_state, t_eval=t_eval)
+    solution = solve_ivp(lorenz_system, [0, t_max], start_state, t_eval=t_eval)
     
     df = pd.DataFrame({
         'Time': np.arange(1, num_points + 1),
@@ -103,6 +114,16 @@ with st.sidebar.expander("Lorenz Parameters (Tab 1)", expanded=True):
     rho = st.sidebar.slider("Rho (ρ)", 10.0, 40.0, 28.0)
     beta = st.sidebar.slider("Beta (β)", 1.0, 5.0, 2.666)
     t_max = st.sidebar.number_input("Max Time (t)", 10.0, 100.0, 40.0)
+    
+    st.markdown("**Starting Point on Attractor**")
+    phase_offset = st.sidebar.slider(
+        "Starting Phase Offset (t)", 
+        min_value=0.0, 
+        max_value=10.0, 
+        value=0.0, 
+        step=0.1,
+        help="Shifts the starting point along the already-formed attractor."
+    )
 
 with st.sidebar.expander("Logistic Map Parameters (Tab 2)", expanded=True):
     rx = st.sidebar.slider("Growth Rate rx", 3.5, 4.0, 3.8, step=0.01)
@@ -137,7 +158,9 @@ with tab1:
     st.markdown(r"$$ \frac{dx}{dt} = \sigma(y-x)$$")
     st.markdown(r"$$\frac{dy}{dt} = x(\rho-z)-y $$")
     st.markdown(r"$$\frac{dz}{dt} = xy-\beta z $$")
-    df_lorenz = generate_lorenz_data(sigma, rho, beta, t_max, num_points)
+    
+    # Updated function call with phase_offset
+    df_lorenz = generate_lorenz_data(sigma, rho, beta, t_max, num_points, phase_offset)
 
     st.markdown("---")
     st.subheader("Data Selection & Visualization")
@@ -205,36 +228,30 @@ with tab1:
     st.pyplot(fig_hist)
     plt.close()
 
-    # --- ADDED: Dynamics Calculations (Cycles and Lobe Switches) ---
+    # --- Dynamics Calculations (Cycles and Lobe Switches) ---
     st.markdown("---")
     st.subheader("Attractor Dynamics & Statistics (Selected Window)")
     
     z_vals = df_lorenz_window['Z'].values
     x_vals = df_lorenz_window['X'].values
     
-    # 1. Count loops/cycles by finding peaks in Z
     peaks, _ = find_peaks(z_vals)
     num_cycles = len(peaks)
     
-    # 2. Typical cycle time (average steps between Z peaks)
     if num_cycles > 1:
         avg_cycle_steps = np.mean(np.diff(peaks))
     else:
         avg_cycle_steps = 0
         
-    # 3. Loops before moving to the other lobe
-    # A lobe switch happens when X crosses 0
     zero_crossings = np.where(np.diff(np.sign(x_vals)))[0]
     
     if len(zero_crossings) > 0:
         loops_per_lobe = []
         start_idx = 0
         for zc in zero_crossings:
-            # Count how many Z peaks happened before the X zero-crossing
             peaks_in_lobe = np.sum((peaks >= start_idx) & (peaks < zc))
             loops_per_lobe.append(peaks_in_lobe)
             start_idx = zc
-        # Add the final segment
         loops_per_lobe.append(np.sum(peaks >= start_idx))
         avg_loops_per_lobe = np.mean(loops_per_lobe)
     else:
