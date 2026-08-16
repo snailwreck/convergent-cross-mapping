@@ -13,14 +13,17 @@ st.set_page_config(page_title="CCM", layout="wide")
 
 # --- Information Theory Functions ---
 @st.cache_data
-def calc_mutual_information(x, y, bins=10):
+def calc_mutual_information(x, y, bins=2):
+    """Calculates Mutual Information using equal-mass (quantile) binning[cite: 4]."""
     x_edges = np.unique(np.quantile(x, np.linspace(0, 1, bins + 1)))
     y_edges = np.unique(np.quantile(y, np.linspace(0, 1, bins + 1)))
+    
     c_xy = np.histogram2d(x, y, bins=[x_edges, y_edges])[0]
     return mutual_info_score(None, None, contingency=c_xy)
 
 @st.cache_data
-def calc_transfer_entropy(x, y, lag=1, bins=10):
+def calc_transfer_entropy(x, y, lag=1, bins=2):
+    """Calculates Transfer Entropy using equal-mass (quantile) binning[cite: 4]."""
     y_t = y[lag:]
     y_past = y[:-lag]
     x_past = x[:-lag]
@@ -42,6 +45,7 @@ def calc_transfer_entropy(x, y, lag=1, bins=10):
     p_y_past_safe = np.where(p_y_past > 0, p_y_past, 1e-10)
     
     b_yt, b_yp, b_xp = c_3d.shape
+    
     term1 = p_3d_safe * p_y_past_safe.reshape(1, b_yp, 1)
     term2 = p_y_t_y_past_safe.reshape(b_yt, b_yp, 1) * p_y_past_x_past_safe.reshape(1, b_yp, b_xp)
     
@@ -50,24 +54,31 @@ def calc_transfer_entropy(x, y, lag=1, bins=10):
 
 # --- Functions ---
 @st.cache_data
-def generate_lorenz_ensemble(sigma, rho, beta, t_max, num_points, perturbation_scale=0.1):
-    """Generates a base trajectory and 10 perturbed trajectories with wider separation."""
+def generate_lorenz_ensemble(sigma, rho, beta, t_max, num_points, perturbation_scale=0.1, phase_offset=0.0):
+    """Generates a base trajectory and 10 perturbed trajectories with phase offset[cite: 4, 5]."""
     def lorenz_system(t, state):
         x, y, z = state
         return [sigma * (y - x), x * (rho - z) - y, x * y - beta * z]
 
-    # 1. Burn-in transient period to get on the attractor
+    # 1. Burn-in transient period to get on the attractor[cite: 4, 5]
     transient_sol = solve_ivp(lorenz_system, [0, 50.0], [1.0, 1.0, 1.0])
-    base_state = transient_sol.y[:, -1]
+    state_on_attractor = transient_sol.y[:, -1]
     
-    # 2. Create ensemble starting points (Base + 10 perturbed) with a larger default spread
+    # 2. Apply phase offset to let user pick a specific starting point on the attractor[cite: 4]
+    if phase_offset > 0:
+        offset_sol = solve_ivp(lorenz_system, [0, phase_offset], state_on_attractor)
+        base_state = offset_sol.y[:, -1]
+    else:
+        base_state = state_on_attractor
+    
+    # 3. Create ensemble starting points (Base + 10 perturbed) with a spread[cite: 5]
     states = [base_state]
-    np.random.seed(42) # Consistent noise for visual stability
+    np.random.seed(42) # Consistent noise for visual stability[cite: 5]
     for _ in range(10):
         perturbed = base_state + np.random.normal(0, perturbation_scale, 3)
         states.append(perturbed)
 
-    # 3. Generate data for all 11 starting states
+    # 4. Generate data for all 11 starting states[cite: 5]
     t_eval = np.linspace(0, t_max, num_points)
     dfs = []
     
@@ -86,16 +97,26 @@ def generate_lorenz_ensemble(sigma, rho, beta, t_max, num_points, perturbation_s
 
 @st.cache_data
 def generate_logistic_data(rx, ry, beta_xy, beta_yx, num_points):
+    """Generates discrete time series data for the coupled logistic map[cite: 4]."""
     x = np.zeros(num_points)
     y = np.zeros(num_points)
+    
     x[0] = 0.4
     y[0] = 0.2
+    
     for t in range(num_points - 1):
         x[t+1] = x[t] * (rx - rx * x[t] - beta_xy * y[t])
         y[t+1] = y[t] * (ry - ry * y[t] - beta_yx * x[t])
+        
         x[t+1] = max(0, min(1, x[t+1]))
         y[t+1] = max(0, min(1, y[t+1]))
-    return pd.DataFrame({'Time': np.arange(1, num_points + 1), 'X': x, 'Y': y})
+        
+    df = pd.DataFrame({
+        'Time': np.arange(1, num_points + 1),
+        'X': x,
+        'Y': y
+    })
+    return df
 
 # --- Sidebar UI ---
 st.sidebar.title("Configuration")
@@ -106,16 +127,25 @@ with st.sidebar.expander("Lorenz Parameters (Tab 1)", expanded=True):
     beta = st.sidebar.slider("Beta (β)", 1.0, 5.0, 2.666)
     t_max = st.sidebar.number_input("Max Time (t)", 10.0, 100.0, 40.0)
     
-    st.markdown("**Settings**")
+    st.markdown("**Starting Point on Attractor**")
+    phase_offset = st.sidebar.slider(
+        "Starting Phase Offset (t)", 
+        min_value=0.0, 
+        max_value=10.0, 
+        value=0.0, 
+        step=0.1,
+        help="Shifts the starting point along the already-formed attractor.[cite: 4]"
+    )
+    
+    st.markdown("**Ensemble Settings**")
     perturbation_scale = st.sidebar.number_input(
         "Initial Perturbation Spread", 
         min_value=0.0001, 
         max_value=5.0, 
         value=0.1, 
         format="%.4f",
-        help="How far apart the starting points are generated around the base point. Increased default for better visibility."
+        help="How far apart the starting points are generated around the base point.[cite: 5]"
     )
-    num_cycles = st.sidebar.slider("Number of Cycles", 1, 20, 10, help="Number of cycles/bins configuration reference.")
 
 with st.sidebar.expander("Logistic Map Parameters (Tab 2)", expanded=True):
     rx = st.sidebar.slider("Growth Rate rx", 3.5, 4.0, 3.8, step=0.01)
@@ -133,7 +163,7 @@ max_lib_size = st.sidebar.slider("Max Library Size", 100, absolute_max_lib, defa
 lib_step = st.sidebar.number_input("Library Step Size", 10, 200, 20)
 max_lag = st.sidebar.slider("Max Lag for Analysis", min_value=1, max_value=30, value=10, step=1)
 
-bin_steps = [2, 4, 8, 10, 16]
+bin_steps = [2, 4, 8, 16]
 
 # --- Main Application ---
 st.title("Convergent Cross Mapping (CCM) & Information Theory")
@@ -145,7 +175,11 @@ tab1, tab2 = st.tabs(["Lorenz Attractor", "Coupled Logistic Map"])
 # ==========================================
 with tab1:
     st.header("Lorenz Attractor")
-    dfs_lorenz = generate_lorenz_ensemble(sigma, rho, beta, t_max, num_points, perturbation_scale)
+    st.markdown(r"$$ \frac{dx}{dt} = \sigma(y-x)$$")
+    st.markdown(r"$$\frac{dy}{dt} = x(\rho-z)-y $$")
+    st.markdown(r"$$\frac{dz}{dt} = xy-\beta z $$")
+    
+    dfs_lorenz = generate_lorenz_ensemble(sigma, rho, beta, t_max, num_points, perturbation_scale, phase_offset)
     df_base_full = dfs_lorenz[0]
 
     st.markdown("---")
@@ -167,7 +201,7 @@ with tab1:
         df_win.reset_index(drop=True, inplace=True)
         dfs_window.append(df_win)
         
-    df_base_win = dfs_window[0]
+    df_base_win = dfs_window[0] # Base trajectory for specific dynamics[cite: 4]
     window_len = len(df_base_win)
 
     col1, col2 = st.columns(2)
@@ -184,7 +218,7 @@ with tab1:
 
         ax1.set_xlabel(v1)
         ax1.set_ylabel(v2)
-        ax1.set_title("Phase Space (Red dots = initial points)")
+        ax1.set_title("Phase Space (Red dots = initial points)[cite: 5]")
         st.pyplot(fig1)
 
     with col2:
@@ -203,6 +237,71 @@ with tab1:
         ax2.legend()
         st.pyplot(fig2)
 
+    # --- Equal-Mass Histogram Distribution (Using Base Trajectory) ---
+    st.markdown("---")
+    st.subheader("Equal-Mass Histogram Distributions (Base Trajectory)")
+    selected_bin_viz = st.selectbox("Select Fixed Bin Size for Visualization:", bin_steps, index=2)
+    
+    x_edges = np.unique(np.quantile(df_base_win['X'], np.linspace(0, 1, selected_bin_viz + 1)))
+    y_edges = np.unique(np.quantile(df_base_win['Y'], np.linspace(0, 1, selected_bin_viz + 1)))
+    z_edges = np.unique(np.quantile(df_base_win['Z'], np.linspace(0, 1, selected_bin_viz + 1)))
+    
+    fig_hist, axes = plt.subplots(1, 3, figsize=(15, 4))
+    
+    axes[0].hist(df_base_win['X'], bins=x_edges, edgecolor='black', color='skyblue')
+    axes[0].set_title(f"X Distribution\n(Equal Mass, Bins={selected_bin_viz})[cite: 4]")
+    axes[0].set_ylabel("Count (Mass in Bin)")
+    
+    axes[1].hist(df_base_win['Y'], bins=y_edges, edgecolor='black', color='lightgreen')
+    axes[1].set_title(f"Y Distribution\n(Equal Mass, Bins={selected_bin_viz})[cite: 4]")
+    
+    axes[2].hist(df_base_win['Z'], bins=z_edges, edgecolor='black', color='salmon')
+    axes[2].set_title(f"Z Distribution\n(Equal Mass, Bins={selected_bin_viz})[cite: 4]")
+    
+    for ax in axes:
+        ax.set_xlabel("Value")
+        ax.grid(axis='y', linestyle='--', alpha=0.7)
+    
+    st.pyplot(fig_hist)
+    plt.close()
+
+    # --- Dynamics Calculations (Cycles and Lobe Switches) ---
+    st.markdown("---")
+    st.subheader("Attractor Dynamics & Statistics (Base Trajectory Window)")
+    
+    z_vals = df_base_win['Z'].values
+    x_vals = df_base_win['X'].values
+    
+    peaks, _ = find_peaks(z_vals)
+    num_cycles = len(peaks)
+    
+    if num_cycles > 1:
+        avg_cycle_steps = np.mean(np.diff(peaks))
+    else:
+        avg_cycle_steps = 0
+        
+    zero_crossings = np.where(np.diff(np.sign(x_vals)))[0]
+    
+    if len(zero_crossings) > 0:
+        loops_per_lobe = []
+        start_idx = 0
+        for zc in zero_crossings:
+            peaks_in_lobe = np.sum((peaks >= start_idx) & (peaks < zc))
+            loops_per_lobe.append(peaks_in_lobe)
+            start_idx = zc
+        loops_per_lobe.append(np.sum(peaks >= start_idx))
+        avg_loops_per_lobe = np.mean(loops_per_lobe)
+    else:
+        avg_loops_per_lobe = num_cycles
+
+    col_d1, col_d2, col_d3, col_d4 = st.columns(4)
+    corr_matrix = df_base_win[['X', 'Y', 'Z']].corr()
+    
+    col_d1.metric(f"Pearson Corr ({v1}, {v2})", f"{corr_matrix.loc[v1, v2]:.3f}")
+    col_d2.metric("Total Cycles (Loops)", f"{num_cycles}")
+    col_d3.metric("Avg. Cycle Time (Steps)", f"{avg_cycle_steps:.1f}")
+    col_d4.metric("Avg. Loops Before Switch", f"{avg_loops_per_lobe:.2f}")
+
     # --- Metrics Visualization (Ensemble) ---
     st.markdown("---")
     st.subheader(f"Information Theory Metrics vs. Histogram Bins ({v1} and {v2})")
@@ -211,7 +310,7 @@ with tab1:
     te_12_matrix = np.zeros((len(dfs_window), len(bin_steps)))
     te_21_matrix = np.zeros((len(dfs_window), len(bin_steps)))
     
-    with st.spinner("Calculating Information Theory metrics for all trajectories..."):
+    with st.spinner("Calculating Information Theory metrics for all trajectories...[cite: 5]"):
         for i, df in enumerate(dfs_window):
             v1_data = df[v1].values
             v2_data = df[v2].values
@@ -234,7 +333,7 @@ with tab1:
     
     ax_info.set_xlabel("Number of Equal-Mass Bins")
     ax_info.set_ylabel("Information (Bits)")
-    ax_info.set_title(f"Information Theory Metrics (Configured Cycles: {num_cycles})")
+    ax_info.set_title("Information Theory Metrics[cite: 5]")
     ax_info.legend()
     ax_info.grid(True, linestyle='--', alpha=0.7)
     st.pyplot(fig_info)
@@ -247,7 +346,7 @@ with tab1:
         if window_len < 100:
             st.error("The selected time window is too small for meaningful analysis. Please select a wider range.")
         else:
-            with st.spinner(f"Running CCM and Simplex for all datasets..."):
+            with st.spinner(f"Running CCM, Simplex, and Granger Causality..."):
                 dynamic_max_lib = max(10, window_len - 50)
                 actual_max_lib = min(max_lib_size, dynamic_max_lib)
                 lib_sizes_str = f"10 {actual_max_lib} {lib_step}"
@@ -285,14 +384,14 @@ with tab1:
                 
                 ax3.set_xlabel("Library Size (L)")
                 ax3.set_ylabel("Correlation (ρ)")
-                ax3.set_title(f"CCM Convergence ({v1} vs {v2})")
+                ax3.set_title(f"CCM Convergence ({v1} vs {v2})[cite: 5]")
                 ax3.legend()
                 ax3.grid(True, linestyle='--', alpha=0.7)
                 ax3.set_ylim([-0.1, 1.1])
                 st.pyplot(fig3)
 
                 st.markdown("---")
-                st.subheader(f"Prediction Performance (Displayed for Base Trajectory)")
+                st.subheader(f"Prediction Performance (Displayed for Base Trajectory)[cite: 5]")
                 col3, col4 = st.columns(2)
                 lib_range = [1, int(actual_max_lib)]
                 pred_range = [1, int(window_len)]
@@ -330,6 +429,57 @@ with tab1:
                     ax_21.set_title(f"Cross-mapping Performance\nρ = {corr_21:.3f}")
                     st.pyplot(fig_21)
                     plt.close()
+
+                # --- Granger Causality Comparison ---
+                st.markdown("---")
+                st.subheader("Granger Causality Comparison (Base Trajectory)")
+                
+                try:
+                    gc_12 = grangercausalitytests(df_base_win[[v2, v1]], maxlag=max_lag)
+                    p_values_12 = [gc_12[lag][0]['ssr_ftest'][1] for lag in range(1, max_lag + 1)]
+                    
+                    gc_21 = grangercausalitytests(df_base_win[[v1, v2]], maxlag=max_lag)
+                    p_values_21 = [gc_21[lag][0]['ssr_ftest'][1] for lag in range(1, max_lag + 1)]
+                    
+                    models_tuple = gc_12[max_lag][1]
+                    restricted_model = models_tuple[0]    
+                    unrestricted_model = models_tuple[1]  
+
+                    actual_target = unrestricted_model.model.endog
+                    pred_restricted = restricted_model.fittedvalues
+                    pred_unrestricted = unrestricted_model.fittedvalues
+
+                    time_axis = df_base_win['Time'].iloc[max_lag:].values
+
+                    fig_fit, ax_fit = plt.subplots(figsize=(10, 4))
+                    ax_fit.plot(time_axis, actual_target, label=f"Actual {v2}", color='black', lw=1.5, alpha=0.6)
+                    ax_fit.plot(time_axis, pred_restricted, label=f"Univariate AR (Uses past {v2} only)", color='red', linestyle='dashed', alpha=0.7)
+                    ax_fit.plot(time_axis, pred_unrestricted, label=f"Bivariate AR (Uses past {v2} & {v1})", color='dodgerblue', linestyle='dotted', lw=2)
+
+                    ax_fit.set_xlabel("Time")
+                    ax_fit.set_ylabel(v2)
+                    ax_fit.set_title(f"Granger Linear Fits at Lag {max_lag}[cite: 4]")
+                    ax_fit.legend()
+                    ax_fit.grid(True, linestyle='--', alpha=0.5)
+                    st.pyplot(fig_fit)
+                    plt.close()
+
+                    fig_gc, ax_gc = plt.subplots(figsize=(8, 4))
+                    lags = np.arange(1, max_lag + 1)
+                    ax_gc.plot(lags, p_values_12, marker='o', color='C1', label=f'{v1} Granger-causes {v2}')
+                    ax_gc.plot(lags, p_values_21, marker='s', color='C0', label=f'{v2} Granger-causes {v1}')
+                    ax_gc.axhline(y=0.05, color='r', linestyle='--', label='α = 0.05 Significance Threshold')
+                    ax_gc.set_xlabel("Lag Step")
+                    ax_gc.set_ylabel("p-value")
+                    ax_gc.set_title(f"Granger Causality Significance vs. Lags (Up to Lag {max_lag})[cite: 4]")
+                    ax_gc.set_ylim([-0.05, 1.05])
+                    ax_gc.legend()
+                    ax_gc.grid(True, linestyle='--', alpha=0.5)
+                    st.pyplot(fig_gc)
+                    plt.close()
+
+                except Exception as e:
+                    st.error(f"Could not compute Granger Causality (likely due to data alignment/stationarity limitations): {e}")
 
 # ==========================================
 # TAB 2: COUPLED LOGISTIC MAP
@@ -378,7 +528,7 @@ with tab2:
     ax_info_map.plot([str(b) for b in bin_steps], te_y_x_vals, marker='^', label='TE: Y -> X', color='purple')
     ax_info_map.set_xlabel("Number of Equal-Mass Bins")
     ax_info_map.set_ylabel("Information (Bits)")
-    ax_info_map.set_title("Information Theory Metrics vs. Histogram Bins (Logistic Map)")
+    ax_info_map.set_title("Information Theory Metrics vs. Histogram Bins (Logistic Map)[cite: 4, 5]")
     ax_info_map.legend()
     ax_info_map.grid(True, linestyle='--', alpha=0.7)
     st.pyplot(fig_info_map)
@@ -443,5 +593,5 @@ with tab2:
                 ax_xy_m.set_xlabel("Observed Y")
                 ax_xy_m.set_ylabel("Predicted Y from M_X")
                 ax_xy_m.set_title(f"Cross-mapping Performance\nρ = {corr_yx_m:.3f}")
-                st.pyplot(fig_xy_m)
+                st.pyplot(fig_yx_m)
                 plt.close()
