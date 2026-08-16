@@ -180,7 +180,7 @@ with tab1:
             color = 'royalblue' if i == 0 else 'gray'
             lw = 1.0 if i == 0 else 0.5
             ax1.plot(df[v1], df[v2], lw=lw, color=color, alpha=alpha)
-            ax1.scatter(df[v1].iloc[0], df[v2].iloc[0], color='red', s=30, zorder=5)
+            ax1.scatter(df[v1].iloc[0], df[v2].iloc[0], color='red', s=5, zorder=5)
 
         ax1.set_xlabel(v1)
         ax1.set_ylabel(v2)
@@ -197,9 +197,6 @@ with tab1:
             
             ax2.plot(df['Time'], df[v1], color='dodgerblue', lw=lw, alpha=alpha, label=v1 if i==0 else "")
             ax2.plot(df['Time'], df[v2], color='orange', lw=lw, alpha=alpha, label=v2 if i==0 else "")
-            
-            ax2.scatter(df['Time'].iloc[0], df[v1].iloc[0], color='red', s=25, zorder=5)
-            ax2.scatter(df['Time'].iloc[0], df[v2].iloc[0], color='red', s=25, zorder=5)
 
         ax2.set_xlabel("Time (Index)")
         ax2.set_ylabel("Value")
@@ -446,5 +443,5 @@ with tab2:
                 ax_xy_m.set_xlabel("Observed Y")
                 ax_xy_m.set_ylabel("Predicted Y from M_X")
                 ax_xy_m.set_title(f"Cross-mapping Performance\nρ = {corr_yx_m:.3f}")
-                st.pyplot(fig_yx_m)
+                st.pyplot(fig_xy_m)
                 plt.close()
