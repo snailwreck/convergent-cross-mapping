@@ -346,7 +346,7 @@ with tab1:
         if window_len < 100:
             st.error("The selected time window is too small for meaningful analysis. Please select a wider range.")
         else:
-            with st.spinner(f"Running CCM, Simplex, and Granger Causality..."):
+            with st.spinner(f"Running CCM and Granger causality..."):
                 dynamic_max_lib = max(10, window_len - 50)
                 actual_max_lib = min(max_lib_size, dynamic_max_lib)
                 lib_sizes_str = f"10 {actual_max_lib} {lib_step}"
