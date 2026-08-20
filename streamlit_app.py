@@ -13,15 +13,6 @@ st.set_page_config(page_title="CCM", layout="wide")
 
 # --- Information Theory Functions ---
 @st.cache_data
-def calc_shannon_entropy(x, bins=2):
-    """Calculates Shannon Entropy (in bits) using equal-mass (quantile) binning."""
-    x_edges = np.unique(np.quantile(x, np.linspace(0, 1, bins + 1)))
-    counts, _ = np.histogram(x, bins=x_edges)
-    probs = counts / np.sum(counts)
-    probs = probs[probs > 0]
-    return -np.sum(probs * np.log2(probs))
-
-@st.cache_data
 def calc_mutual_information(x, y, bins=2):
     """Calculates Mutual Information using equal-mass (quantile) binning."""
     x_edges = np.unique(np.quantile(x, np.linspace(0, 1, bins + 1)))
@@ -61,6 +52,25 @@ def calc_transfer_entropy(x, y, lag=1, bins=2):
     te = np.sum(p_3d * np.log2(term1 / term2))
     return max(0.0, te)
 
+@st.cache_data
+def calc_shannon_entropy(x, bins=2):
+    """Calculates Shannon Entropy (in bits) using equal-mass (quantile) binning."""
+    # Use the same binning logic as your MI and TE functions
+    x_edges = np.unique(np.quantile(x, np.linspace(0, 1, bins + 1)))
+    
+    # Calculate histogram counts
+    counts, _ = np.histogram(x, bins=x_edges)
+    
+    # Convert counts to probabilities
+    probs = counts / np.sum(counts)
+    
+    # Filter out zero probabilities to avoid log2(0) errors
+    probs = probs[probs > 0]
+    
+    # Calculate Shannon entropy (in bits)
+    entropy = -np.sum(probs * np.log2(probs))
+    return entropy
+
 # --- Functions ---
 @st.cache_data
 def generate_lorenz_ensemble(sigma, rho, beta, t_max, num_points, perturbation_scale=0.1, phase_offset=0.0):
@@ -69,21 +79,25 @@ def generate_lorenz_ensemble(sigma, rho, beta, t_max, num_points, perturbation_s
         x, y, z = state
         return [sigma * (y - x), x * (rho - z) - y, x * y - beta * z]
 
+    # 1. Burn-in transient period to get on the attractor
     transient_sol = solve_ivp(lorenz_system, [0, 50.0], [1.0, 1.0, 1.0])
     state_on_attractor = transient_sol.y[:, -1]
     
+    # 2. Apply phase offset to let user pick a specific starting point on the attractor
     if phase_offset > 0:
         offset_sol = solve_ivp(lorenz_system, [0, phase_offset], state_on_attractor)
         base_state = offset_sol.y[:, -1]
     else:
         base_state = state_on_attractor
     
+    # 3. Create ensemble starting points (Base + 10 perturbed) with a spread
     states = [base_state]
-    np.random.seed(42)
+    np.random.seed(42) # Consistent noise for visual stability
     for _ in range(10):
         perturbed = base_state + np.random.normal(0, perturbation_scale, 3)
         states.append(perturbed)
 
+    # 4. Generate data for all 11 starting states
     t_eval = np.linspace(0, t_max, num_points)
     dfs = []
     
@@ -206,7 +220,7 @@ with tab1:
         df_win.reset_index(drop=True, inplace=True)
         dfs_window.append(df_win)
         
-    df_base_win = dfs_window[0] 
+    df_base_win = dfs_window[0] # Base trajectory for specific dynamics
     window_len = len(df_base_win)
 
     col1, col2 = st.columns(2)
@@ -314,8 +328,6 @@ with tab1:
     mi_matrix = np.zeros((len(dfs_window), len(bin_steps)))
     te_12_matrix = np.zeros((len(dfs_window), len(bin_steps)))
     te_21_matrix = np.zeros((len(dfs_window), len(bin_steps)))
-    hx_matrix = np.zeros((len(dfs_window), len(bin_steps)))
-    hy_matrix = np.zeros((len(dfs_window), len(bin_steps)))
     
     with st.spinner("Calculating Information Theory metrics for all trajectories..."):
         for i, df in enumerate(dfs_window):
@@ -325,8 +337,6 @@ with tab1:
                 mi_matrix[i, j] = calc_mutual_information(v1_data, v2_data, bins=b)
                 te_12_matrix[i, j] = calc_transfer_entropy(v1_data, v2_data, lag=1, bins=b)
                 te_21_matrix[i, j] = calc_transfer_entropy(v2_data, v1_data, lag=1, bins=b)
-                hx_matrix[i, j] = calc_shannon_entropy(v1_data, bins=b)
-                hy_matrix[i, j] = calc_shannon_entropy(v2_data, bins=b)
 
     fig_info, ax_info = plt.subplots(figsize=(10, 4))
     x_b = [str(b) for b in bin_steps]
@@ -339,15 +349,11 @@ with tab1:
 
     ax_info.plot(x_b, np.mean(te_21_matrix, axis=0), marker='^', label=f'Mean TE: {v2} -> {v1}', color='purple')
     ax_info.fill_between(x_b, np.min(te_21_matrix, axis=0), np.max(te_21_matrix, axis=0), color='purple', alpha=0.15)
-
-    # Plotted independent Shannon Entropies
-    ax_info.plot(x_b, np.mean(hx_matrix, axis=0), marker='x', label=f'Mean Entropy H({v1})', color='dodgerblue', linestyle='--')
-    ax_info.plot(x_b, np.mean(hy_matrix, axis=0), marker='+', label=f'Mean Entropy H({v2})', color='salmon', linestyle='--')
     
     ax_info.set_xlabel("Number of Equal-Mass Bins")
     ax_info.set_ylabel("Information (Bits)")
     ax_info.set_title("Information Theory Metrics")
-    ax_info.legend(loc='upper left', bbox_to_anchor=(1, 1))
+    ax_info.legend()
     ax_info.grid(True, linestyle='--', alpha=0.7)
     st.pyplot(fig_info)
     plt.close()
@@ -526,9 +532,6 @@ with tab2:
     mi_vals_map = []
     te_x_y_vals = []
     te_y_x_vals = []
-    hx_vals_map = []
-    hy_vals_map = []
-    
     x_data_map = df_map['X'].values
     y_data_map = df_map['Y'].values
 
@@ -537,22 +540,15 @@ with tab2:
             mi_vals_map.append(calc_mutual_information(x_data_map, y_data_map, bins=b))
             te_x_y_vals.append(calc_transfer_entropy(x_data_map, y_data_map, lag=1, bins=b))
             te_y_x_vals.append(calc_transfer_entropy(y_data_map, x_data_map, lag=1, bins=b))
-            hx_vals_map.append(calc_shannon_entropy(x_data_map, bins=b))
-            hy_vals_map.append(calc_shannon_entropy(y_data_map, bins=b))
 
     fig_info_map, ax_info_map = plt.subplots(figsize=(10, 4))
     ax_info_map.plot([str(b) for b in bin_steps], mi_vals_map, marker='o', label='Mutual Info (MI)', color='green')
     ax_info_map.plot([str(b) for b in bin_steps], te_x_y_vals, marker='s', label='TE: X -> Y', color='orange')
     ax_info_map.plot([str(b) for b in bin_steps], te_y_x_vals, marker='^', label='TE: Y -> X', color='purple')
-    
-    # Plotted independent Shannon Entropies
-    ax_info_map.plot([str(b) for b in bin_steps], hx_vals_map, marker='x', label='Entropy H(X)', color='dodgerblue', linestyle='--')
-    ax_info_map.plot([str(b) for b in bin_steps], hy_vals_map, marker='+', label='Entropy H(Y)', color='salmon', linestyle='--')
-    
     ax_info_map.set_xlabel("Number of Equal-Mass Bins")
     ax_info_map.set_ylabel("Information (Bits)")
     ax_info_map.set_title("Information Theory Metrics vs. Histogram Bins (Logistic Map)")
-    ax_info_map.legend(loc='upper left', bbox_to_anchor=(1, 1))
+    ax_info_map.legend()
     ax_info_map.grid(True, linestyle='--', alpha=0.7)
     st.pyplot(fig_info_map)
     plt.close()
