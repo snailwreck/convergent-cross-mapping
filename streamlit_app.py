@@ -14,7 +14,7 @@ st.set_page_config(page_title="CCM", layout="wide")
 # --- Information Theory Functions ---
 @st.cache_data
 def calc_mutual_information(x, y, bins=2):
-    """Calculates Mutual Information using equal-mass (quantile) binning[cite: 4]."""
+    """Calculates Mutual Information using equal-mass (quantile) binning."""
     x_edges = np.unique(np.quantile(x, np.linspace(0, 1, bins + 1)))
     y_edges = np.unique(np.quantile(y, np.linspace(0, 1, bins + 1)))
     
@@ -23,7 +23,7 @@ def calc_mutual_information(x, y, bins=2):
 
 @st.cache_data
 def calc_transfer_entropy(x, y, lag=1, bins=2):
-    """Calculates Transfer Entropy using equal-mass (quantile) binning[cite: 4]."""
+    """Calculates Transfer Entropy using equal-mass (quantile) binning."""
     y_t = y[lag:]
     y_past = y[:-lag]
     x_past = x[:-lag]
@@ -55,30 +55,30 @@ def calc_transfer_entropy(x, y, lag=1, bins=2):
 # --- Functions ---
 @st.cache_data
 def generate_lorenz_ensemble(sigma, rho, beta, t_max, num_points, perturbation_scale=0.1, phase_offset=0.0):
-    """Generates a base trajectory and 10 perturbed trajectories with phase offset[cite: 4, 5]."""
+    """Generates a base trajectory and 10 perturbed trajectories with phase offset."""
     def lorenz_system(t, state):
         x, y, z = state
         return [sigma * (y - x), x * (rho - z) - y, x * y - beta * z]
 
-    # 1. Burn-in transient period to get on the attractor[cite: 4, 5]
+    # 1. Burn-in transient period to get on the attractor
     transient_sol = solve_ivp(lorenz_system, [0, 50.0], [1.0, 1.0, 1.0])
     state_on_attractor = transient_sol.y[:, -1]
     
-    # 2. Apply phase offset to let user pick a specific starting point on the attractor[cite: 4]
+    # 2. Apply phase offset to let user pick a specific starting point on the attractor
     if phase_offset > 0:
         offset_sol = solve_ivp(lorenz_system, [0, phase_offset], state_on_attractor)
         base_state = offset_sol.y[:, -1]
     else:
         base_state = state_on_attractor
     
-    # 3. Create ensemble starting points (Base + 10 perturbed) with a spread[cite: 5]
+    # 3. Create ensemble starting points (Base + 10 perturbed) with a spread
     states = [base_state]
-    np.random.seed(42) # Consistent noise for visual stability[cite: 5]
+    np.random.seed(42) # Consistent noise for visual stability
     for _ in range(10):
         perturbed = base_state + np.random.normal(0, perturbation_scale, 3)
         states.append(perturbed)
 
-    # 4. Generate data for all 11 starting states[cite: 5]
+    # 4. Generate data for all 11 starting states
     t_eval = np.linspace(0, t_max, num_points)
     dfs = []
     
@@ -97,7 +97,7 @@ def generate_lorenz_ensemble(sigma, rho, beta, t_max, num_points, perturbation_s
 
 @st.cache_data
 def generate_logistic_data(rx, ry, beta_xy, beta_yx, num_points):
-    """Generates discrete time series data for the coupled logistic map[cite: 4]."""
+    """Generates discrete time series data for the coupled logistic map."""
     x = np.zeros(num_points)
     y = np.zeros(num_points)
     
@@ -134,7 +134,7 @@ with st.sidebar.expander("Lorenz Parameters (Tab 1)", expanded=True):
         max_value=10.0, 
         value=0.0, 
         step=0.1,
-        help="Shifts the starting point along the already-formed attractor.[cite: 4]"
+        help="Shifts the starting point along the already-formed attractor."
     )
     
     st.markdown("**Ensemble Settings**")
@@ -144,7 +144,7 @@ with st.sidebar.expander("Lorenz Parameters (Tab 1)", expanded=True):
         max_value=5.0, 
         value=0.1, 
         format="%.4f",
-        help="How far apart the starting points are generated around the base point.[cite: 5]"
+        help="How far apart the starting points are generated around the base point."
     )
 
 with st.sidebar.expander("Logistic Map Parameters (Tab 2)", expanded=True):
@@ -201,7 +201,7 @@ with tab1:
         df_win.reset_index(drop=True, inplace=True)
         dfs_window.append(df_win)
         
-    df_base_win = dfs_window[0] # Base trajectory for specific dynamics[cite: 4]
+    df_base_win = dfs_window[0] # Base trajectory for specific dynamics
     window_len = len(df_base_win)
 
     col1, col2 = st.columns(2)
@@ -218,7 +218,7 @@ with tab1:
 
         ax1.set_xlabel(v1)
         ax1.set_ylabel(v2)
-        ax1.set_title("Phase Space (Red dots = initial points)[cite: 5]")
+        ax1.set_title("Phase Space (Red dots = initial points)")
         st.pyplot(fig1)
 
     with col2:
@@ -249,14 +249,14 @@ with tab1:
     fig_hist, axes = plt.subplots(1, 3, figsize=(15, 4))
     
     axes[0].hist(df_base_win['X'], bins=x_edges, edgecolor='black', color='skyblue')
-    axes[0].set_title(f"X Distribution\n(Equal Mass, Bins={selected_bin_viz})[cite: 4]")
+    axes[0].set_title(f"X Distribution\n(Equal Mass, Bins={selected_bin_viz})")
     axes[0].set_ylabel("Count (Mass in Bin)")
     
     axes[1].hist(df_base_win['Y'], bins=y_edges, edgecolor='black', color='lightgreen')
-    axes[1].set_title(f"Y Distribution\n(Equal Mass, Bins={selected_bin_viz})[cite: 4]")
+    axes[1].set_title(f"Y Distribution\n(Equal Mass, Bins={selected_bin_viz})")
     
     axes[2].hist(df_base_win['Z'], bins=z_edges, edgecolor='black', color='salmon')
-    axes[2].set_title(f"Z Distribution\n(Equal Mass, Bins={selected_bin_viz})[cite: 4]")
+    axes[2].set_title(f"Z Distribution\n(Equal Mass, Bins={selected_bin_viz})")
     
     for ax in axes:
         ax.set_xlabel("Value")
@@ -310,7 +310,7 @@ with tab1:
     te_12_matrix = np.zeros((len(dfs_window), len(bin_steps)))
     te_21_matrix = np.zeros((len(dfs_window), len(bin_steps)))
     
-    with st.spinner("Calculating Information Theory metrics for all trajectories...[cite: 5]"):
+    with st.spinner("Calculating Information Theory metrics for all trajectories..."):
         for i, df in enumerate(dfs_window):
             v1_data = df[v1].values
             v2_data = df[v2].values
@@ -333,7 +333,7 @@ with tab1:
     
     ax_info.set_xlabel("Number of Equal-Mass Bins")
     ax_info.set_ylabel("Information (Bits)")
-    ax_info.set_title("Information Theory Metrics[cite: 5]")
+    ax_info.set_title("Information Theory Metrics")
     ax_info.legend()
     ax_info.grid(True, linestyle='--', alpha=0.7)
     st.pyplot(fig_info)
@@ -384,14 +384,14 @@ with tab1:
                 
                 ax3.set_xlabel("Library Size (L)")
                 ax3.set_ylabel("Correlation (ρ)")
-                ax3.set_title(f"CCM Convergence ({v1} vs {v2})[cite: 5]")
+                ax3.set_title(f"CCM Convergence ({v1} vs {v2})")
                 ax3.legend()
                 ax3.grid(True, linestyle='--', alpha=0.7)
                 ax3.set_ylim([-0.1, 1.1])
                 st.pyplot(fig3)
 
                 st.markdown("---")
-                st.subheader(f"Prediction Performance (Displayed for Base Trajectory)[cite: 5]")
+                st.subheader(f"Prediction Performance (Displayed for Base Trajectory)")
                 col3, col4 = st.columns(2)
                 lib_range = [1, int(actual_max_lib)]
                 pred_range = [1, int(window_len)]
@@ -458,7 +458,7 @@ with tab1:
 
                     ax_fit.set_xlabel("Time")
                     ax_fit.set_ylabel(v2)
-                    ax_fit.set_title(f"Granger Linear Fits at Lag {max_lag}[cite: 4]")
+                    ax_fit.set_title(f"Granger Linear Fits at Lag {max_lag}")
                     ax_fit.legend()
                     ax_fit.grid(True, linestyle='--', alpha=0.5)
                     st.pyplot(fig_fit)
@@ -471,7 +471,7 @@ with tab1:
                     ax_gc.axhline(y=0.05, color='r', linestyle='--', label='α = 0.05 Significance Threshold')
                     ax_gc.set_xlabel("Lag Step")
                     ax_gc.set_ylabel("p-value")
-                    ax_gc.set_title(f"Granger Causality Significance vs. Lags (Up to Lag {max_lag})[cite: 4]")
+                    ax_gc.set_title(f"Granger Causality Significance vs. Lags (Up to Lag {max_lag})")
                     ax_gc.set_ylim([-0.05, 1.05])
                     ax_gc.legend()
                     ax_gc.grid(True, linestyle='--', alpha=0.5)
@@ -528,7 +528,7 @@ with tab2:
     ax_info_map.plot([str(b) for b in bin_steps], te_y_x_vals, marker='^', label='TE: Y -> X', color='purple')
     ax_info_map.set_xlabel("Number of Equal-Mass Bins")
     ax_info_map.set_ylabel("Information (Bits)")
-    ax_info_map.set_title("Information Theory Metrics vs. Histogram Bins (Logistic Map)[cite: 4, 5]")
+    ax_info_map.set_title("Information Theory Metrics vs. Histogram Bins (Logistic Map)")
     ax_info_map.legend()
     ax_info_map.grid(True, linestyle='--', alpha=0.7)
     st.pyplot(fig_info_map)
