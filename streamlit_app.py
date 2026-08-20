@@ -52,25 +52,6 @@ def calc_transfer_entropy(x, y, lag=1, bins=2):
     te = np.sum(p_3d * np.log2(term1 / term2))
     return max(0.0, te)
 
-@st.cache_data
-def calc_shannon_entropy(x, bins=2):
-    """Calculates Shannon Entropy (in bits) using equal-mass (quantile) binning."""
-    # Use the same binning logic as your MI and TE functions
-    x_edges = np.unique(np.quantile(x, np.linspace(0, 1, bins + 1)))
-    
-    # Calculate histogram counts
-    counts, _ = np.histogram(x, bins=x_edges)
-    
-    # Convert counts to probabilities
-    probs = counts / np.sum(counts)
-    
-    # Filter out zero probabilities to avoid log2(0) errors
-    probs = probs[probs > 0]
-    
-    # Calculate Shannon entropy (in bits)
-    entropy = -np.sum(probs * np.log2(probs))
-    return entropy
-
 # --- Functions ---
 @st.cache_data
 def generate_lorenz_ensemble(sigma, rho, beta, t_max, num_points, perturbation_scale=0.1, phase_offset=0.0):
