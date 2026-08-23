@@ -137,7 +137,7 @@ def render_pairwise_analysis(dfs_window, df_base_win, pairs, window_len, max_lib
     
     # Tooltip added to the execution button
     if st.button(f"Run CCM & Granger", key=f"btn_{pairs[0]}_{E_dim}_{key_suffix}", 
-                 help="Executes the computationally intensive Convergent Cross Mapping and Granger Causality routines for these variables."):
+                 help="Executes convergent cross-mapping and Granger causality routines."):
         with st.spinner("Processing Causality Metrics..."):
             for v1, v2 in pairs:
                 st.subheader(f"Coupling Results: {v1} & {v2}")
@@ -231,10 +231,10 @@ with intro:
 with tab0:
     st.header("The Four Dynamical Systems")
     st.markdown("""
-    * **Lorenz System**: The Lorenz system is a continuous-time, three-dimensional nonlinear deterministic system. It exhibits chaotic behavior characterized by the famous "butterfly" attractor shape.
-    * **Coupled Logistic Map**: The coupled logistic map is a discrete-time demographic model used to simulate chaotic population dynamics and featured in the 2012 Sugihara paper in Science analyzing CCM. As a coupled system, the system is characterized by two parameters that control the strength of each variable on the other.
-    * **Phase-Shifted Sinusoids**: This is a periodic sinusoidal system with variables shifted in time with additional Gaussian noise, illustrating an environment where variables are correlated but not causally related.
-    * **Frequency-Shifted Sinusoids**: This is a periodic sinusoidal system with variables in different frequencies with additional Gaussian noise, illustrating an environment where variables are correlated but not causally related.
+    * **Lorenz System**: The Lorenz system is a continuous-time, three-dimensional nonlinear deterministic system. It exhibits chaotic behavior characterized by the famous "butterfly" attractor shape. A good causality predictor should detect a causal relationship between the three variables, despite the lack of obvious correlation and linearity.
+    * **Coupled Logistic Map**: The coupled logistic map is a discrete-time demographic model used to simulate chaotic population dynamics and featured in the 2012 Sugihara paper in Science analyzing CCM. As a coupled system, the system is characterized by two parameters that control the strength of each variable on the other. Adjusting the beta parameters can give one variable a disproportionate effect on the other, meaning a good causality predictor should forecast an asymmetric causal relationship.
+    * **Phase-Shifted Sinusoids**: This is a periodic sinusoidal system with variables shifted in time with additional Gaussian noise, illustrating an environment where variables are correlated but not causally related. A good causality predictor should not forecast a causal relationship since the variables are only correlated.
+    * **Frequency-Shifted Sinusoids**: This is a periodic sinusoidal system with variables in different frequencies with additional Gaussian noise, illustrating an environment where variables are correlated but not causally related. A good causality predictor should not forecast a causal relationship since the variables are only correlated.
     """)
     
     st.markdown("---")
