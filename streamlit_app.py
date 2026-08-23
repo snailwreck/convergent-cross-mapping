@@ -10,7 +10,7 @@ from sklearn.metrics import mutual_info_score
 import warnings
 
 warnings.filterwarnings("ignore")
-st.set_page_config(page_title="CCM & Causality", layout="wide")
+st.set_page_config(page_title="Measures of Causality and Dynamical Systems", layout="wide")
 
 # --- Information Theory Functions ---
 @st.cache_data
@@ -192,9 +192,9 @@ def render_pairwise_analysis(dfs_window, df_base_win, pairs, window_len, max_lib
 
 # --- Sidebar UI with Tooltips ---
 st.sidebar.title("Configuration")
-num_points = st.sidebar.slider("Data Points", 500, 5000, 2000, step=100, 
+num_points = st.sidebar.slider("Data Points", 500, 10000, 2000, step=100, 
                                help="Total number of discrete time steps generated for the modeled system.")
-max_lib_size = st.sidebar.slider("Max Library Size", 100, min(500, num_points-50), step=50, 
+max_lib_size = st.sidebar.slider("Max Library Size", 100, num_points-50, step=50, 
                                  help="Maximum number of historical observations used to reconstruct the state space manifold in CCM. Larger libraries improve prediction if causality exists.")
 lib_step = st.sidebar.number_input("Library Step", 10, 200, 20, 
                                    help="The increment by which the library size increases to measure convergence in cross-mapping.")
@@ -205,10 +205,19 @@ noise = st.sidebar.slider("Noise Level (Sinusoids)", 0.0, 1.0, 0.1,
                           help="The amount of Gaussian noise added to the sinusoid signals.")
 
 # --- Main App ---
-st.title("CCM & Information Theory Explorer")
-tab0, tab1, tab2, tab3, tab4 = st.tabs(["Theory & Explanations", "Lorenz", "Logistic", "Phase Shifts", "Freq Shifts"])
+st.title("Measures of Causality and Dynamical Systems")
+intro, tab0, tab1, tab2, tab3, tab4 = st.tabs(["Introduction", "Key Systems and Techniques", "Lorenz", "Logistic", "Phase Shifts", "Freq Shifts"])
 pairs_xyz = [("X", "Y"), ("X", "Z"), ("Y", "Z")]
 
+with intro: 
+    st.header("Introduction")
+    st.markdown(""" 
+    In chaotic systems, minute effects have large cumulative impacts, resulting in a significant divergence of trajectories, even if their initial starting points are close. 
+    An example of a chaotic system is the Lorenz system, which transitions through various regimes, including bifurcations, transient chaos, and strange attractors. 
+    Understanding the causal links governing chaotic systems is crucial for prediction and modelling. Causality can be determined from a variety of methods, including convergent cross-mapping, 
+    information-theoretic methods, and more traditional statistical methods like Granger causality, all with varying effectiveness.
+    """)
+    
 with tab0:
     st.header("The Four Dynamical Systems")
     st.markdown("""
