@@ -96,8 +96,8 @@ def render_pairwise_analysis(dfs_window, df_base_win, pairs, window_len, max_lib
         with col1:
             fig1, ax1 = plt.subplots(figsize=(6, 4))
             ax1.plot(df_base_win[v1], df_base_win[v2], lw=1.0, color='royalblue')
-            ax1.set_xlabel(v1)
-            ax1.set_ylabel(v2)
+            ax1.set_xlabel(f"{v1} Value")
+            ax1.set_ylabel(f"{v2} Value")
             ax1.set_title(f"Phase Space ({v1} vs {v2})")
             st.pyplot(fig1)
 
@@ -106,6 +106,7 @@ def render_pairwise_analysis(dfs_window, df_base_win, pairs, window_len, max_lib
             ax2.plot(df_base_win['Time'], df_base_win[v1], color='dodgerblue', lw=1.0, label=v1)
             ax2.plot(df_base_win['Time'], df_base_win[v2], color='orange', lw=1.0, label=v2)
             ax2.set_xlabel("Time (Index)")
+            ax2.set_ylabel("Amplitude")
             ax2.set_title(f"Time Series")
             ax2.legend()
             st.pyplot(fig2)
@@ -125,6 +126,7 @@ def render_pairwise_analysis(dfs_window, df_base_win, pairs, window_len, max_lib
         ax_info.plot(x_b, te12_vals, marker='s', label=f'TE: {v1}->{v2}', color='orange')
         ax_info.plot(x_b, te21_vals, marker='^', label=f'TE: {v2}->{v1}', color='purple')
         ax_info.set_title("Information Theory Metrics vs Equal-Mass Bins")
+        ax_info.set_xlabel("Number of Equal-Mass Bins")
         ax_info.set_ylabel("Bits")
         ax_info.legend()
         st.pyplot(fig_info)
@@ -156,6 +158,8 @@ def render_pairwise_analysis(dfs_window, df_base_win, pairs, window_len, max_lib
                     ax12.scatter(simp12['Observations'], simp12['Predictions'], alpha=0.4, color='C1')
                     ax12.plot([simp12['Observations'].min(), simp12['Observations'].max()], [simp12['Observations'].min(), simp12['Observations'].max()], 'r--')
                     ax12.set_title(f"M_{v2} predicts {v1} (ρ={simp12['Observations'].corr(simp12['Predictions']):.3f})")
+                    ax12.set_xlabel("Observed Values")
+                    ax12.set_ylabel("Predicted Values")
                     st.pyplot(fig12)
                 with col4:
                     simp21 = pyEDM.Simplex(dataFrame=df_base_win, lib=[1, actual_max_lib], pred=[1, window_len], columns=v1, target=v2, E=E_dim, Tp=0, tau=-1)
@@ -163,6 +167,8 @@ def render_pairwise_analysis(dfs_window, df_base_win, pairs, window_len, max_lib
                     ax21.scatter(simp21['Observations'], simp21['Predictions'], alpha=0.4, color='C0')
                     ax21.plot([simp21['Observations'].min(), simp21['Observations'].max()], [simp21['Observations'].min(), simp21['Observations'].max()], 'r--')
                     ax21.set_title(f"M_{v1} predicts {v2} (ρ={simp21['Observations'].corr(simp21['Predictions']):.3f})")
+                    ax21.set_xlabel("Observed Values")
+                    ax21.set_ylabel("Predicted Values")
                     st.pyplot(fig21)
                     
                 try:
@@ -183,8 +189,8 @@ def render_pairwise_analysis(dfs_window, df_base_win, pairs, window_len, max_lib
 
 # --- Sidebar UI ---
 st.sidebar.title("Configuration")
-num_points = st.sidebar.slider("Data Points", 500, 10000, 2000, step=100)
-max_lib_size = st.sidebar.slider("Max Library Size", 100, num_points-50, step=50)
+num_points = st.sidebar.slider("Data Points", 500, 5000, 2000, step=100)
+max_lib_size = st.sidebar.slider("Max Library Size", 100, min(500, num_points-50), step=50)
 lib_step = st.sidebar.number_input("Library Step", 10, 200, 20)
 max_lag = st.sidebar.slider("Max Lag for Granger", 1, 30, 10)
 bin_steps = [2, 4, 8, 16]
@@ -246,6 +252,8 @@ with tab1:
         edges = np.unique(np.quantile(df_base1[var], np.linspace(0, 1, 9))) 
         axes[i].hist(df_base1[var], bins=edges, edgecolor='black', color=['skyblue', 'lightgreen', 'salmon'][i])
         axes[i].set_title(f"{var} Distribution (Equal Mass, Bins=8)")
+        axes[i].set_xlabel(f"{var} Value")
+        axes[i].set_ylabel("Count")
     st.pyplot(fig_hist)
     plt.close()
     
