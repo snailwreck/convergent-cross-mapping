@@ -212,10 +212,20 @@ pairs_xyz = [("X", "Y"), ("X", "Z"), ("Y", "Z")]
 with intro: 
     st.header("Introduction")
     st.markdown(""" 
-    In chaotic systems, minute effects have large cumulative impacts, resulting in a significant divergence of trajectories, even if their initial starting points are close. 
-    An example of a chaotic system is the Lorenz system, which transitions through various regimes, including bifurcations, transient chaos, and strange attractors. 
-    Understanding the causal links governing chaotic systems is crucial for prediction and modelling. Causality can be determined from a variety of methods, including convergent cross-mapping, 
-    information-theoretic methods, and more traditional statistical methods like Granger causality, all with varying effectiveness.
+    In chaotic systems, minute effects have large cumulative impacts, resulting in a significant divergence of trajectories, 
+    even if their initial starting points are close. An example of a chaotic system is the Lorenz system, 
+    which transitions through various regimes, including bifurcations, transient chaos, and strange attractors. 
+    Understanding the causal links governing chaotic systems is crucial for prediction and modelling. 
+    Causality can be determined from a variety of methods, including convergent cross-mapping (CCM), information-theoretic methods, 
+    and more traditional statistical methods like Granger causality, all with varying effectiveness. 
+    The goal of this project is to determine which method is the best at determining causality: Pearson correlation, 
+    convergent cross-mapping, Granger causality, or information-theoretic measures. In particular, 
+    the goal is to understand if convergent cross-mapping is indeed the best way to determine causality. 
+    The other three methods are common tools to determine relationships between random variables, used here to compare with CCM. 
+    The performance of these four approaches are compared on four different systems: the Lorenz system, the coupled logistic map, 
+    a sinusoidal system with a phase-shift difference, and a sinusoidal system with a frequency difference. 
+    The first system is an example of causation without correlation, the second system is an example of asymmetric causation, 
+    and the last two are examples of correlation without causation.
     """)
 
 with tab0:
