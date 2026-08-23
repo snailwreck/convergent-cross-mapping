@@ -197,7 +197,23 @@ pairs_xyz = [("X", "Y"), ("X", "Z"), ("Y", "Z")]
 
 with tab1:
     st.header("Lorenz Attractor")
-    dfs1 = generate_lorenz_ensemble(10.0, 28.0, 2.666, 40.0, num_points)
+    st.latex(r"""
+    \begin{align*}
+    \frac{dx}{dt} &= \sigma (y - x) \\
+    \frac{dy}{dt} &= x (\rho - z) - y \\
+    \frac{dz}{dt} &= x y - \beta z
+    \end{align*}
+    """)
+    
+    col_p1, col_p2, col_p3 = st.columns(3)
+    with col_p1:
+        sigma_val = st.slider(r"$\sigma$ (Sigma)", 1.0, 20.0, 10.0, step=0.1)
+    with col_p2:
+        rho_val = st.slider(r"$\rho$ (Rho)", 10.0, 50.0, 28.0, step=0.5)
+    with col_p3:
+        beta_val = st.slider(r"$\beta$ (Beta)", 0.5, 5.0, 2.666, step=0.001)
+
+    dfs1 = generate_lorenz_ensemble(sigma_val, rho_val, beta_val, 40.0, num_points)
     df_base1 = dfs1[0]
     
     st.markdown("---")
@@ -237,20 +253,62 @@ with tab1:
 
 with tab2:
     st.header("Coupled Logistic Map")
-    dfs2 = generate_logistic_data(3.8, 3.5, 0.02, 0.10, num_points)
+    st.latex(r"""
+    \begin{align*}
+    X_{t+1} &= X_t (r_x - r_x X_t - \beta_{xy} Y_t) \\
+    Y_{t+1} &= Y_t (r_y - r_y Y_t - \beta_{yx} X_t)
+    \end{align*}
+    """)
+    
+    col_l1, col_l2, col_l3, col_l4 = st.columns(4)
+    with col_l1:
+        rx_val = st.slider(r"$r_x$", 3.0, 4.0, 3.8, step=0.01)
+    with col_l2:
+        ry_val = st.slider(r"$r_y$", 3.0, 4.0, 3.5, step=0.01)
+    with col_l3:
+        bxy_val = st.slider(r"$\beta_{xy}$ (Y->X)", 0.0, 0.5, 0.02, step=0.01)
+    with col_l4:
+        byx_val = st.slider(r"$\beta_{yx}$ (X->Y)", 0.0, 0.5, 0.10, step=0.01)
+
+    dfs2 = generate_logistic_data(rx_val, ry_val, bxy_val, byx_val, num_points)
     render_pairwise_analysis(dfs2, dfs2[0], [("X", "Y")], num_points, max_lib_size, lib_step, max_lag, bin_steps, E_dim=2, key_suffix="logistic")
 
 with tab3:
     st.header("Phase-Shifted Sinusoids")
-    py = st.slider("Phase Offset Y (Radians)", 0.0, 2*np.pi, np.pi/4)
-    pz = st.slider("Phase Offset Z (Radians)", 0.0, 2*np.pi, np.pi/2)
+    st.latex(r"""
+    \begin{align*}
+    X_t &= \sin(t) + \epsilon_x \\
+    Y_t &= \sin(t + \phi_y) + \epsilon_y \\
+    Z_t &= \sin(t + \phi_z) + \epsilon_z 
+    \end{align*}
+    """)
+    
+    col_p1, col_p2 = st.columns(2)
+    with col_p1:
+        py = st.slider(r"$\phi_y$ Phase Offset Y (Radians)", 0.0, 2*np.pi, np.pi/4)
+    with col_p2:
+        pz = st.slider(r"$\phi_z$ Phase Offset Z (Radians)", 0.0, 2*np.pi, np.pi/2)
+        
     dfs3 = generate_phase_sinusoids(num_points, noise, py, pz)
     render_pairwise_analysis(dfs3, dfs3[0], pairs_xyz, num_points, max_lib_size, lib_step, max_lag, bin_steps, E_dim=2, key_suffix="phase")
 
 with tab4:
     st.header("Frequency-Shifted Sinusoids")
-    fx = st.slider("Frequency Multiplier X", 0.5, 3.0, 1.0)
-    fy = st.slider("Frequency Multiplier Y", 0.5, 3.0, 1.5)
-    fz = st.slider("Frequency Multiplier Z", 0.5, 3.0, 2.0)
+    st.latex(r"""
+    \begin{align*}
+    X_t &= \sin(f_x t) + \epsilon_x \\
+    Y_t &= \sin(f_y t) + \epsilon_y \\
+    Z_t &= \sin(f_z t) + \epsilon_z 
+    \end{align*}
+    """)
+    
+    col_f1, col_f2, col_f3 = st.columns(3)
+    with col_f1:
+        fx = st.slider(r"$f_x$ Frequency Multiplier X", 0.5, 3.0, 1.0)
+    with col_f2:
+        fy = st.slider(r"$f_y$ Frequency Multiplier Y", 0.5, 3.0, 1.5)
+    with col_f3:
+        fz = st.slider(r"$f_z$ Frequency Multiplier Z", 0.5, 3.0, 2.0)
+        
     dfs4 = generate_frequency_sinusoids(num_points, noise, fx, fy, fz)
     render_pairwise_analysis(dfs4, dfs4[0], pairs_xyz, num_points, max_lib_size, lib_step, max_lag, bin_steps, E_dim=2, key_suffix="freq")
