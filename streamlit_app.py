@@ -217,14 +217,14 @@ with intro:
     Understanding the causal links governing chaotic systems is crucial for prediction and modelling. Causality can be determined from a variety of methods, including convergent cross-mapping, 
     information-theoretic methods, and more traditional statistical methods like Granger causality, all with varying effectiveness.
     """)
-    
+
 with tab0:
     st.header("The Four Dynamical Systems")
     st.markdown("""
     * **Lorenz System**: The Lorenz system is a continuous-time, three-dimensional nonlinear deterministic system. It exhibits chaotic behavior characterized by the famous "butterfly" attractor shape.
     * **Coupled Logistic Map**: The coupled logistic map is a discrete-time demographic model used to simulate chaotic population dynamics and featured in the 2012 Sugihara paper in Science analyzing CCM. As a coupled system, the system is characterized by two parameters that control the strength of each variable on the other.
-    * **Phase-Shifted Sinusoids**: This is a periodic sinusoidal system with variables shifted in time, illustrating an environment where variables are correlated but not causally related.
-    * **Frequency-Shifted Sinusoids**: This is a periodic sinusoidal system with variables in different frequencies, illustrating an environment where variables are correlated but not causally related.
+    * **Phase-Shifted Sinusoids**: This is a periodic sinusoidal system with variables shifted in time with additional Gaussian noise, illustrating an environment where variables are correlated but not causally related.
+    * **Frequency-Shifted Sinusoids**: This is a periodic sinusoidal system with variables in different frequencies with additional Gaussian noise, illustrating an environment where variables are correlated but not causally related.
     """)
     
     st.markdown("---")
