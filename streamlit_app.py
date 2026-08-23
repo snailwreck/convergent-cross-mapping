@@ -87,7 +87,7 @@ def generate_frequency_sinusoids(num_points, noise, freq_x, freq_y, freq_z):
     })]
 
 # --- Reusable UI Component for Analysis ---
-def render_pairwise_analysis(dfs_window, df_base_win, pairs, window_len, max_lib_size, lib_step, max_lag, bin_steps, E_dim=3):
+def render_pairwise_analysis(dfs_window, df_base_win, pairs, window_len, max_lib_size, lib_step, max_lag, bin_steps, E_dim=3, key_suffix=""):
     for v1, v2 in pairs:
         st.markdown(f"---")
         st.header(f"Analysis: {v1} and {v2}")
@@ -132,7 +132,7 @@ def render_pairwise_analysis(dfs_window, df_base_win, pairs, window_len, max_lib
 
     st.markdown("---")
     st.header("Causality Analysis")
-    if st.button(f"Run CCM & Granger", key=f"btn_{pairs[0]}_{E_dim}"):
+    if st.button(f"Run CCM & Granger", key=f"btn_{pairs[0]}_{E_dim}_{key_suffix}"):
         with st.spinner("Processing Causality Metrics..."):
             for v1, v2 in pairs:
                 st.subheader(f"Coupling Results: {v1} & {v2}")
@@ -165,7 +165,6 @@ def render_pairwise_analysis(dfs_window, df_base_win, pairs, window_len, max_lib
                     ax21.set_title(f"M_{v1} predicts {v2} (ρ={simp21['Observations'].corr(simp21['Predictions']):.3f})")
                     st.pyplot(fig21)
                     
-                # Granger Causality Block Restored
                 try:
                     gc_12 = grangercausalitytests(df_base_win[[v2, v1]], maxlag=max_lag, verbose=False)
                     gc_21 = grangercausalitytests(df_base_win[[v1, v2]], maxlag=max_lag, verbose=False)
@@ -201,7 +200,6 @@ with tab1:
     dfs1 = generate_lorenz_ensemble(10.0, 28.0, 2.666, 40.0, num_points)
     df_base1 = dfs1[0]
     
-    # Restored Global Dynamics Block
     st.markdown("---")
     st.subheader("Global Attractor Dynamics & Distributions")
     
@@ -229,25 +227,25 @@ with tab1:
 
     fig_hist, axes = plt.subplots(1, 3, figsize=(15, 4))
     for i, var in enumerate(['X', 'Y', 'Z']):
-        edges = np.unique(np.quantile(df_base1[var], np.linspace(0, 1, 9))) # 8 bins for rendering
+        edges = np.unique(np.quantile(df_base1[var], np.linspace(0, 1, 9))) 
         axes[i].hist(df_base1[var], bins=edges, edgecolor='black', color=['skyblue', 'lightgreen', 'salmon'][i])
         axes[i].set_title(f"{var} Distribution (Equal Mass, Bins=8)")
     st.pyplot(fig_hist)
     plt.close()
     
-    render_pairwise_analysis(dfs1, df_base1, pairs_xyz, num_points, max_lib_size, lib_step, max_lag, bin_steps, E_dim=3)
+    render_pairwise_analysis(dfs1, df_base1, pairs_xyz, num_points, max_lib_size, lib_step, max_lag, bin_steps, E_dim=3, key_suffix="lorenz")
 
 with tab2:
     st.header("Coupled Logistic Map")
     dfs2 = generate_logistic_data(3.8, 3.5, 0.02, 0.10, num_points)
-    render_pairwise_analysis(dfs2, dfs2[0], [("X", "Y")], num_points, max_lib_size, lib_step, max_lag, bin_steps, E_dim=2)
+    render_pairwise_analysis(dfs2, dfs2[0], [("X", "Y")], num_points, max_lib_size, lib_step, max_lag, bin_steps, E_dim=2, key_suffix="logistic")
 
 with tab3:
     st.header("Phase-Shifted Sinusoids")
     py = st.slider("Phase Offset Y (Radians)", 0.0, 2*np.pi, np.pi/4)
     pz = st.slider("Phase Offset Z (Radians)", 0.0, 2*np.pi, np.pi/2)
     dfs3 = generate_phase_sinusoids(num_points, noise, py, pz)
-    render_pairwise_analysis(dfs3, dfs3[0], pairs_xyz, num_points, max_lib_size, lib_step, max_lag, bin_steps, E_dim=2)
+    render_pairwise_analysis(dfs3, dfs3[0], pairs_xyz, num_points, max_lib_size, lib_step, max_lag, bin_steps, E_dim=2, key_suffix="phase")
 
 with tab4:
     st.header("Frequency-Shifted Sinusoids")
@@ -255,4 +253,4 @@ with tab4:
     fy = st.slider("Frequency Multiplier Y", 0.5, 3.0, 1.5)
     fz = st.slider("Frequency Multiplier Z", 0.5, 3.0, 2.0)
     dfs4 = generate_frequency_sinusoids(num_points, noise, fx, fy, fz)
-    render_pairwise_analysis(dfs4, dfs4[0], pairs_xyz, num_points, max_lib_size, lib_step, max_lag, bin_steps, E_dim=2)
+    render_pairwise_analysis(dfs4, dfs4[0], pairs_xyz, num_points, max_lib_size, lib_step, max_lag, bin_steps, E_dim=2, key_suffix="freq")
