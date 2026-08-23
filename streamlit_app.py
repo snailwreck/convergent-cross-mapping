@@ -60,25 +60,21 @@ def generate_lorenz_ensemble(sigma, rho, beta, t_max, num_points, perturbation_s
         x, y, z = state
         return [sigma * (y - x), x * (rho - z) - y, x * y - beta * z]
 
-    # 1. Burn-in transient period to get on the attractor
     transient_sol = solve_ivp(lorenz_system, [0, 50.0], [1.0, 1.0, 1.0])
     state_on_attractor = transient_sol.y[:, -1]
     
-    # 2. Apply phase offset to let user pick a specific starting point on the attractor
     if phase_offset > 0:
         offset_sol = solve_ivp(lorenz_system, [0, phase_offset], state_on_attractor)
         base_state = offset_sol.y[:, -1]
     else:
         base_state = state_on_attractor
     
-    # 3. Create ensemble starting points (Base + 10 perturbed) with a spread
     states = [base_state]
-    np.random.seed(42) # Consistent noise for visual stability
+    np.random.seed(42)
     for _ in range(10):
         perturbed = base_state + np.random.normal(0, perturbation_scale, 3)
         states.append(perturbed)
 
-    # 4. Generate data for all 11 starting states
     t_eval = np.linspace(0, t_max, num_points)
     dfs = []
     
@@ -128,24 +124,10 @@ with st.sidebar.expander("Lorenz Parameters (Tab 1)", expanded=True):
     t_max = st.sidebar.number_input("Max Time (t)", 10.0, 100.0, 40.0)
     
     st.markdown("**Starting Point on Attractor**")
-    phase_offset = st.sidebar.slider(
-        "Starting Phase Offset (t)", 
-        min_value=0.0, 
-        max_value=10.0, 
-        value=0.0, 
-        step=0.1,
-        help="Shifts the starting point along the already-formed attractor."
-    )
+    phase_offset = st.sidebar.slider("Starting Phase Offset (t)", min_value=0.0, max_value=10.0, value=0.0, step=0.1)
     
     st.markdown("**Ensemble Settings**")
-    perturbation_scale = st.sidebar.number_input(
-        "Initial Perturbation Spread", 
-        min_value=0.0001, 
-        max_value=5.0, 
-        value=0.1, 
-        format="%.4f",
-        help="How far apart the starting points are generated around the base point."
-    )
+    perturbation_scale = st.sidebar.number_input("Initial Perturbation Spread", min_value=0.0001, max_value=5.0, value=0.1, format="%.4f")
 
 with st.sidebar.expander("Logistic Map Parameters (Tab 2)", expanded=True):
     rx = st.sidebar.slider("Growth Rate rx", 3.5, 4.0, 3.8, step=0.01)
@@ -180,19 +162,13 @@ with tab1:
     st.markdown(r"$$\frac{dz}{dt} = xy-\beta z $$")
     
     dfs_lorenz = generate_lorenz_ensemble(sigma, rho, beta, t_max, num_points, perturbation_scale, phase_offset)
-    df_base_full = dfs_lorenz[0]
 
     st.markdown("---")
-    st.subheader("Data Selection & Visualization")
-    var_pair = st.radio("Select Variable Pair to Analyze:", ["X and Y", "X and Z", "Y and Z"], horizontal=True)
-    v1, v2 = var_pair.split(" and ")
-
+    st.subheader("Data Selection")
+    
     window_start, window_end = st.slider(
         "Select Time Window for Analysis",
-        min_value=1,
-        max_value=num_points,
-        value=(1, num_points),
-        step=10
+        min_value=1, max_value=num_points, value=(1, num_points), step=10
     )
     
     dfs_window = []
@@ -201,85 +177,18 @@ with tab1:
         df_win.reset_index(drop=True, inplace=True)
         dfs_window.append(df_win)
         
-    df_base_win = dfs_window[0] # Base trajectory for specific dynamics
+    df_base_win = dfs_window[0] 
     window_len = len(df_base_win)
 
-    col1, col2 = st.columns(2)
-    with col1:
-        st.subheader(f"Phase Space ({v1} vs {v2})")
-        fig1, ax1 = plt.subplots(figsize=(6, 4))
-        
-        for i, df in enumerate(dfs_window):
-            alpha = 1.0 if i == 0 else 0.3
-            color = 'royalblue' if i == 0 else 'gray'
-            lw = 1.0 if i == 0 else 0.5
-            ax1.plot(df[v1], df[v2], lw=lw, color=color, alpha=alpha)
-            ax1.scatter(df[v1].iloc[0], df[v2].iloc[0], color='red', s=5, zorder=5)
-
-        ax1.set_xlabel(v1)
-        ax1.set_ylabel(v2)
-        ax1.set_title("Phase Space (Red dots = initial points)")
-        st.pyplot(fig1)
-
-    with col2:
-        st.subheader(f"Time Series ({v1} and {v2})")
-        fig2, ax2 = plt.subplots(figsize=(6, 4))
-        
-        for i, df in enumerate(dfs_window):
-            alpha = 1.0 if i == 0 else 0.3
-            lw = 1.0 if i == 0 else 0.5
-            
-            ax2.plot(df['Time'], df[v1], color='dodgerblue', lw=lw, alpha=alpha, label=v1 if i==0 else "")
-            ax2.plot(df['Time'], df[v2], color='orange', lw=lw, alpha=alpha, label=v2 if i==0 else "")
-
-        ax2.set_xlabel("Time (Index)")
-        ax2.set_ylabel("Value")
-        ax2.legend()
-        st.pyplot(fig2)
-
-    # --- Equal-Mass Histogram Distribution (Using Base Trajectory) ---
+    # --- Equal-Mass Histogram Distribution & Dynamics (Global) ---
     st.markdown("---")
-    st.subheader("Equal-Mass Histogram Distributions (Base Trajectory)")
-    selected_bin_viz = st.selectbox("Select Fixed Bin Size for Visualization:", bin_steps, index=2)
-    
-    x_edges = np.unique(np.quantile(df_base_win['X'], np.linspace(0, 1, selected_bin_viz + 1)))
-    y_edges = np.unique(np.quantile(df_base_win['Y'], np.linspace(0, 1, selected_bin_viz + 1)))
-    z_edges = np.unique(np.quantile(df_base_win['Z'], np.linspace(0, 1, selected_bin_viz + 1)))
-    
-    fig_hist, axes = plt.subplots(1, 3, figsize=(15, 4))
-    
-    axes[0].hist(df_base_win['X'], bins=x_edges, edgecolor='black', color='skyblue')
-    axes[0].set_title(f"X Distribution\n(Equal Mass, Bins={selected_bin_viz})")
-    axes[0].set_ylabel("Count (Mass in Bin)")
-    
-    axes[1].hist(df_base_win['Y'], bins=y_edges, edgecolor='black', color='lightgreen')
-    axes[1].set_title(f"Y Distribution\n(Equal Mass, Bins={selected_bin_viz})")
-    
-    axes[2].hist(df_base_win['Z'], bins=z_edges, edgecolor='black', color='salmon')
-    axes[2].set_title(f"Z Distribution\n(Equal Mass, Bins={selected_bin_viz})")
-    
-    for ax in axes:
-        ax.set_xlabel("Value")
-        ax.grid(axis='y', linestyle='--', alpha=0.7)
-    
-    st.pyplot(fig_hist)
-    plt.close()
-
-    # --- Dynamics Calculations (Cycles and Lobe Switches) ---
-    st.markdown("---")
-    st.subheader("Attractor Dynamics & Statistics (Base Trajectory Window)")
+    st.subheader("Global Attractor Dynamics & Distributions (Base Trajectory)")
     
     z_vals = df_base_win['Z'].values
     x_vals = df_base_win['X'].values
-    
     peaks, _ = find_peaks(z_vals)
     num_cycles = len(peaks)
-    
-    if num_cycles > 1:
-        avg_cycle_steps = np.mean(np.diff(peaks))
-    else:
-        avg_cycle_steps = 0
-        
+    avg_cycle_steps = np.mean(np.diff(peaks)) if num_cycles > 1 else 0
     zero_crossings = np.where(np.diff(np.sign(x_vals)))[0]
     
     if len(zero_crossings) > 0:
@@ -294,23 +203,67 @@ with tab1:
     else:
         avg_loops_per_lobe = num_cycles
 
-    col_d1, col_d2, col_d3, col_d4 = st.columns(4)
-    corr_matrix = df_base_win[['X', 'Y', 'Z']].corr()
-    
-    col_d1.metric(f"Pearson Corr ({v1}, {v2})", f"{corr_matrix.loc[v1, v2]:.3f}")
-    col_d2.metric("Total Cycles (Loops)", f"{num_cycles}")
-    col_d3.metric("Avg. Cycle Time (Steps)", f"{avg_cycle_steps:.1f}")
-    col_d4.metric("Avg. Loops Before Switch", f"{avg_loops_per_lobe:.2f}")
+    col_d1, col_d2, col_d3 = st.columns(3)
+    col_d1.metric("Total Cycles (Loops)", f"{num_cycles}")
+    col_d2.metric("Avg. Cycle Time (Steps)", f"{avg_cycle_steps:.1f}")
+    col_d3.metric("Avg. Loops Before Switch", f"{avg_loops_per_lobe:.2f}")
 
-    # --- Metrics Visualization (Ensemble) ---
-    st.markdown("---")
-    st.subheader(f"Information Theory Metrics vs. Histogram Bins ({v1} and {v2})")
+    selected_bin_viz = st.selectbox("Select Fixed Bin Size for Visualization:", bin_steps, index=2)
+    x_edges = np.unique(np.quantile(df_base_win['X'], np.linspace(0, 1, selected_bin_viz + 1)))
+    y_edges = np.unique(np.quantile(df_base_win['Y'], np.linspace(0, 1, selected_bin_viz + 1)))
+    z_edges = np.unique(np.quantile(df_base_win['Z'], np.linspace(0, 1, selected_bin_viz + 1)))
     
-    mi_matrix = np.zeros((len(dfs_window), len(bin_steps)))
-    te_12_matrix = np.zeros((len(dfs_window), len(bin_steps)))
-    te_21_matrix = np.zeros((len(dfs_window), len(bin_steps)))
+    fig_hist, axes = plt.subplots(1, 3, figsize=(15, 4))
+    axes[0].hist(df_base_win['X'], bins=x_edges, edgecolor='black', color='skyblue')
+    axes[0].set_title(f"X Distribution\n(Equal Mass, Bins={selected_bin_viz})")
+    axes[1].hist(df_base_win['Y'], bins=y_edges, edgecolor='black', color='lightgreen')
+    axes[1].set_title(f"Y Distribution\n(Equal Mass, Bins={selected_bin_viz})")
+    axes[2].hist(df_base_win['Z'], bins=z_edges, edgecolor='black', color='salmon')
+    axes[2].set_title(f"Z Distribution\n(Equal Mass, Bins={selected_bin_viz})")
+    for ax in axes:
+        ax.set_xlabel("Value")
+        ax.grid(axis='y', linestyle='--', alpha=0.7)
+    st.pyplot(fig_hist)
+    plt.close()
+
+    # --- Pairwise Analysis Loop ---
+    pairs = [("X", "Y"), ("X", "Z"), ("Y", "Z")]
     
-    with st.spinner("Calculating Information Theory metrics for all trajectories..."):
+    for v1, v2 in pairs:
+        st.markdown(f"---")
+        st.header(f"Analysis: {v1} and {v2}")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            fig1, ax1 = plt.subplots(figsize=(6, 4))
+            for i, df in enumerate(dfs_window):
+                alpha = 1.0 if i == 0 else 0.3
+                color = 'royalblue' if i == 0 else 'gray'
+                lw = 1.0 if i == 0 else 0.5
+                ax1.plot(df[v1], df[v2], lw=lw, color=color, alpha=alpha)
+                ax1.scatter(df[v1].iloc[0], df[v2].iloc[0], color='red', s=5, zorder=5)
+            ax1.set_xlabel(v1)
+            ax1.set_ylabel(v2)
+            ax1.set_title(f"Phase Space ({v1} vs {v2})")
+            st.pyplot(fig1)
+
+        with col2:
+            fig2, ax2 = plt.subplots(figsize=(6, 4))
+            for i, df in enumerate(dfs_window):
+                alpha = 1.0 if i == 0 else 0.3
+                lw = 1.0 if i == 0 else 0.5
+                ax2.plot(df['Time'], df[v1], color='dodgerblue', lw=lw, alpha=alpha, label=v1 if i==0 else "")
+                ax2.plot(df['Time'], df[v2], color='orange', lw=lw, alpha=alpha, label=v2 if i==0 else "")
+            ax2.set_xlabel("Time (Index)")
+            ax2.set_ylabel("Value")
+            ax2.legend()
+            ax2.set_title(f"Time Series ({v1} and {v2})")
+            st.pyplot(fig2)
+
+        mi_matrix = np.zeros((len(dfs_window), len(bin_steps)))
+        te_12_matrix = np.zeros((len(dfs_window), len(bin_steps)))
+        te_21_matrix = np.zeros((len(dfs_window), len(bin_steps)))
+        
         for i, df in enumerate(dfs_window):
             v1_data = df[v1].values
             v2_data = df[v2].values
@@ -319,167 +272,134 @@ with tab1:
                 te_12_matrix[i, j] = calc_transfer_entropy(v1_data, v2_data, lag=1, bins=b)
                 te_21_matrix[i, j] = calc_transfer_entropy(v2_data, v1_data, lag=1, bins=b)
 
-    fig_info, ax_info = plt.subplots(figsize=(10, 4))
-    x_b = [str(b) for b in bin_steps]
-    
-    ax_info.plot(x_b, np.mean(mi_matrix, axis=0), marker='o', label='Mean Mutual Info (MI)', color='green')
-    ax_info.fill_between(x_b, np.min(mi_matrix, axis=0), np.max(mi_matrix, axis=0), color='green', alpha=0.15)
+        fig_info, ax_info = plt.subplots(figsize=(10, 4))
+        x_b = [str(b) for b in bin_steps]
+        
+        ax_info.plot(x_b, np.mean(mi_matrix, axis=0), marker='o', label='Mean Mutual Info (MI)', color='green')
+        ax_info.fill_between(x_b, np.min(mi_matrix, axis=0), np.max(mi_matrix, axis=0), color='green', alpha=0.15)
+        ax_info.plot(x_b, np.mean(te_12_matrix, axis=0), marker='s', label=f'Mean TE: {v1} -> {v2}', color='orange')
+        ax_info.fill_between(x_b, np.min(te_12_matrix, axis=0), np.max(te_12_matrix, axis=0), color='orange', alpha=0.15)
+        ax_info.plot(x_b, np.mean(te_21_matrix, axis=0), marker='^', label=f'Mean TE: {v2} -> {v1}', color='purple')
+        ax_info.fill_between(x_b, np.min(te_21_matrix, axis=0), np.max(te_21_matrix, axis=0), color='purple', alpha=0.15)
+        
+        ax_info.set_xlabel("Number of Equal-Mass Bins")
+        ax_info.set_ylabel("Information (Bits)")
+        ax_info.set_title(f"Information Theory Metrics ({v1} and {v2})")
+        ax_info.legend()
+        ax_info.grid(True, linestyle='--', alpha=0.7)
+        st.pyplot(fig_info)
+        plt.close()
 
-    ax_info.plot(x_b, np.mean(te_12_matrix, axis=0), marker='s', label=f'Mean TE: {v1} -> {v2}', color='orange')
-    ax_info.fill_between(x_b, np.min(te_12_matrix, axis=0), np.max(te_12_matrix, axis=0), color='orange', alpha=0.15)
-
-    ax_info.plot(x_b, np.mean(te_21_matrix, axis=0), marker='^', label=f'Mean TE: {v2} -> {v1}', color='purple')
-    ax_info.fill_between(x_b, np.min(te_21_matrix, axis=0), np.max(te_21_matrix, axis=0), color='purple', alpha=0.15)
-    
-    ax_info.set_xlabel("Number of Equal-Mass Bins")
-    ax_info.set_ylabel("Information (Bits)")
-    ax_info.set_title("Information Theory Metrics")
-    ax_info.legend()
-    ax_info.grid(True, linestyle='--', alpha=0.7)
-    st.pyplot(fig_info)
-    plt.close()
-
+    # --- Run CCM & Granger For All Pairs ---
     st.markdown("---")
-    st.subheader(f"CCM Analysis: {v1} and {v2} Coupling")
-
-    if st.button(f"Run Lorenz Analysis ({v1} & {v2})"):
+    st.header("Comprehensive Causality Analysis (All Pairs)")
+    
+    if st.button("Run CCM & Granger Analysis For All Pairs"):
         if window_len < 100:
             st.error("The selected time window is too small for meaningful analysis. Please select a wider range.")
         else:
-            with st.spinner(f"Running CCM and Granger causality..."):
-                dynamic_max_lib = max(10, window_len - 50)
-                actual_max_lib = min(max_lib_size, dynamic_max_lib)
-                lib_sizes_str = f"10 {actual_max_lib} {lib_step}"
-                
-                ccm_12_all = []
-                ccm_21_all = []
-                lib_sizes = None
-                
-                col_v1_v2 = f"{v1}:{v2}"
-                col_v2_v1 = f"{v2}:{v1}"
-
-                for df in dfs_window:
-                    ccm_result = pyEDM.CCM(
-                        dataFrame=df, E=3, columns=v1, target=v2,
-                        libSizes=lib_sizes_str, sample=100, showPlot=False
-                    )
-                    if lib_sizes is None:
-                        lib_sizes = ccm_result['LibSize'].values
+            with st.spinner("Processing CCM and Granger Causality for all variables..."):
+                for v1, v2 in pairs:
+                    st.subheader(f"Coupling Results: {v1} and {v2}")
                     
-                    if col_v1_v2 in ccm_result.columns:
-                        ccm_12_all.append(ccm_result[col_v1_v2].values)
-                    if col_v2_v1 in ccm_result.columns:
-                        ccm_21_all.append(ccm_result[col_v2_v1].values)
-
-                ccm_12_arr = np.array(ccm_12_all)
-                ccm_21_arr = np.array(ccm_21_all)
-
-                fig3, ax3 = plt.subplots(figsize=(8, 5))
-                if len(ccm_12_arr) > 0 and len(ccm_21_arr) > 0:
-                    ax3.plot(lib_sizes, np.mean(ccm_12_arr, axis=0), marker='o', color='C1', label=f'Mean {v1} cross-maps {v2}')
-                    ax3.plot(lib_sizes, np.mean(ccm_21_arr, axis=0), marker='s', color='C0', label=f'Mean {v2} cross-maps {v1}')
+                    dynamic_max_lib = max(10, window_len - 50)
+                    actual_max_lib = min(max_lib_size, dynamic_max_lib)
+                    lib_sizes_str = f"10 {actual_max_lib} {lib_step}"
                     
-                    ax3.fill_between(lib_sizes, np.min(ccm_12_arr, axis=0), np.max(ccm_12_arr, axis=0), color='C1', alpha=0.15)
-                    ax3.fill_between(lib_sizes, np.min(ccm_21_arr, axis=0), np.max(ccm_21_arr, axis=0), color='C0', alpha=0.15)
-                
-                ax3.set_xlabel("Library Size (L)")
-                ax3.set_ylabel("Correlation (ρ)")
-                ax3.set_title(f"CCM Convergence ({v1} vs {v2})")
-                ax3.legend()
-                ax3.grid(True, linestyle='--', alpha=0.7)
-                ax3.set_ylim([-0.1, 1.1])
-                st.pyplot(fig3)
+                    ccm_12_all, ccm_21_all = [], []
+                    lib_sizes = None
+                    col_v1_v2, col_v2_v1 = f"{v1}:{v2}", f"{v2}:{v1}"
 
-                st.markdown("---")
-                st.subheader(f"Prediction Performance (Displayed for Base Trajectory)")
-                col3, col4 = st.columns(2)
-                lib_range = [1, int(actual_max_lib)]
-                pred_range = [1, int(window_len)]
-                
-                with col3:
-                    st.markdown(f"### Does {v1} cause {v2}?")
-                    simplex_12 = pyEDM.Simplex(
-                        dataFrame=df_base_win, lib=lib_range, pred=pred_range,
-                        columns=v2, target=v1, E=3, Tp=0, tau=-1
-                    )
-                    corr_12 = simplex_12['Observations'].corr(simplex_12['Predictions'])
-                    fig_12, ax_12 = plt.subplots(figsize=(5, 5))
-                    ax_12.scatter(simplex_12['Observations'], simplex_12['Predictions'], alpha=0.4, edgecolors='none', color='C1')
-                    ax_12.plot([simplex_12['Observations'].min(), simplex_12['Observations'].max()],
-                               [simplex_12['Observations'].min(), simplex_12['Observations'].max()], 'r--', lw=2)
-                    ax_12.set_xlabel(f"Observed {v1}")
-                    ax_12.set_ylabel(f"Predicted {v1} from M_{v2}")
-                    ax_12.set_title(f"Cross-mapping Performance\nρ = {corr_12:.3f}")
-                    st.pyplot(fig_12)
-                    plt.close()
+                    for df in dfs_window:
+                        ccm_result = pyEDM.CCM(
+                            dataFrame=df, E=3, columns=v1, target=v2,
+                            libSizes=lib_sizes_str, sample=100, showPlot=False
+                        )
+                        if lib_sizes is None:
+                            lib_sizes = ccm_result['LibSize'].values
+                        if col_v1_v2 in ccm_result.columns:
+                            ccm_12_all.append(ccm_result[col_v1_v2].values)
+                        if col_v2_v1 in ccm_result.columns:
+                            ccm_21_all.append(ccm_result[col_v2_v1].values)
 
-                with col4:
-                    st.markdown(f"### Does {v2} cause {v1}?")
-                    simplex_21 = pyEDM.Simplex(
-                        dataFrame=df_base_win, lib=lib_range, pred=pred_range,
-                        columns=v1, target=v2, E=3, Tp=0, tau=-1
-                    )
-                    corr_21 = simplex_21['Observations'].corr(simplex_21['Predictions'])
-                    fig_21, ax_21 = plt.subplots(figsize=(5, 5))
-                    ax_21.scatter(simplex_21['Observations'], simplex_21['Predictions'], alpha=0.4, edgecolors='none', color='C0')
-                    ax_21.plot([simplex_21['Observations'].min(), simplex_21['Observations'].max()],
-                               [simplex_21['Observations'].min(), simplex_21['Observations'].max()], 'r--', lw=2)
-                    ax_21.set_xlabel(f"Observed {v2}")
-                    ax_21.set_ylabel(f"Predicted {v2} from M_{v1}")
-                    ax_21.set_title(f"Cross-mapping Performance\nρ = {corr_21:.3f}")
-                    st.pyplot(fig_21)
-                    plt.close()
+                    ccm_12_arr, ccm_21_arr = np.array(ccm_12_all), np.array(ccm_21_all)
 
-                # --- Granger Causality Comparison ---
-                st.markdown("---")
-                st.subheader("Granger Causality Comparison (Base Trajectory)")
-                
-                try:
-                    gc_12 = grangercausalitytests(df_base_win[[v2, v1]], maxlag=max_lag)
-                    p_values_12 = [gc_12[lag][0]['ssr_ftest'][1] for lag in range(1, max_lag + 1)]
+                    fig3, ax3 = plt.subplots(figsize=(8, 5))
+                    if len(ccm_12_arr) > 0 and len(ccm_21_arr) > 0:
+                        ax3.plot(lib_sizes, np.mean(ccm_12_arr, axis=0), marker='o', color='C1', label=f'Mean {v1} cross-maps {v2}')
+                        ax3.plot(lib_sizes, np.mean(ccm_21_arr, axis=0), marker='s', color='C0', label=f'Mean {v2} cross-maps {v1}')
+                        ax3.fill_between(lib_sizes, np.min(ccm_12_arr, axis=0), np.max(ccm_12_arr, axis=0), color='C1', alpha=0.15)
+                        ax3.fill_between(lib_sizes, np.min(ccm_21_arr, axis=0), np.max(ccm_21_arr, axis=0), color='C0', alpha=0.15)
                     
-                    gc_21 = grangercausalitytests(df_base_win[[v1, v2]], maxlag=max_lag)
-                    p_values_21 = [gc_21[lag][0]['ssr_ftest'][1] for lag in range(1, max_lag + 1)]
+                    ax3.set_xlabel("Library Size (L)")
+                    ax3.set_ylabel("Correlation (ρ)")
+                    ax3.set_title(f"CCM Convergence ({v1} vs {v2})")
+                    ax3.legend()
+                    ax3.grid(True, linestyle='--', alpha=0.7)
+                    ax3.set_ylim([-0.1, 1.1])
+                    st.pyplot(fig3)
                     
-                    models_tuple = gc_12[max_lag][1]
-                    restricted_model = models_tuple[0]    
-                    unrestricted_model = models_tuple[1]  
+                    st.markdown(f"#### Prediction Performance (Displayed for Base Trajectory: {v1} & {v2})")
+                    col3, col4 = st.columns(2)
+                    lib_range = [1, int(actual_max_lib)]
+                    pred_range = [1, int(window_len)]
+                    
+                    with col3:
+                        st.markdown(f"##### Does {v1} cause {v2}?")
+                        simplex_12 = pyEDM.Simplex(
+                            dataFrame=df_base_win, lib=lib_range, pred=pred_range,
+                            columns=v2, target=v1, E=3, Tp=0, tau=-1
+                        )
+                        corr_12 = simplex_12['Observations'].corr(simplex_12['Predictions'])
+                        fig_12, ax_12 = plt.subplots(figsize=(5, 5))
+                        ax_12.scatter(simplex_12['Observations'], simplex_12['Predictions'], alpha=0.4, edgecolors='none', color='C1')
+                        ax_12.plot([simplex_12['Observations'].min(), simplex_12['Observations'].max()],
+                                   [simplex_12['Observations'].min(), simplex_12['Observations'].max()], 'r--', lw=2)
+                        ax_12.set_xlabel(f"Observed {v1}")
+                        ax_12.set_ylabel(f"Predicted {v1} from M_{v2}")
+                        ax_12.set_title(f"Cross-mapping Performance\nρ = {corr_12:.3f}")
+                        st.pyplot(fig_12)
+                        plt.close()
 
-                    actual_target = unrestricted_model.model.endog
-                    pred_restricted = restricted_model.fittedvalues
-                    pred_unrestricted = unrestricted_model.fittedvalues
+                    with col4:
+                        st.markdown(f"##### Does {v2} cause {v1}?")
+                        simplex_21 = pyEDM.Simplex(
+                            dataFrame=df_base_win, lib=lib_range, pred=pred_range,
+                            columns=v1, target=v2, E=3, Tp=0, tau=-1
+                        )
+                        corr_21 = simplex_21['Observations'].corr(simplex_21['Predictions'])
+                        fig_21, ax_21 = plt.subplots(figsize=(5, 5))
+                        ax_21.scatter(simplex_21['Observations'], simplex_21['Predictions'], alpha=0.4, edgecolors='none', color='C0')
+                        ax_21.plot([simplex_21['Observations'].min(), simplex_21['Observations'].max()],
+                                   [simplex_21['Observations'].min(), simplex_21['Observations'].max()], 'r--', lw=2)
+                        ax_21.set_xlabel(f"Observed {v2}")
+                        ax_21.set_ylabel(f"Predicted {v2} from M_{v1}")
+                        ax_21.set_title(f"Cross-mapping Performance\nρ = {corr_21:.3f}")
+                        st.pyplot(fig_21)
+                        plt.close()
 
-                    time_axis = df_base_win['Time'].iloc[max_lag:].values
+                    # Granger Causality
+                    try:
+                        gc_12 = grangercausalitytests(df_base_win[[v2, v1]], maxlag=max_lag, verbose=False)
+                        p_values_12 = [gc_12[lag][0]['ssr_ftest'][1] for lag in range(1, max_lag + 1)]
+                        gc_21 = grangercausalitytests(df_base_win[[v1, v2]], maxlag=max_lag, verbose=False)
+                        p_values_21 = [gc_21[lag][0]['ssr_ftest'][1] for lag in range(1, max_lag + 1)]
 
-                    fig_fit, ax_fit = plt.subplots(figsize=(10, 4))
-                    ax_fit.plot(time_axis, actual_target, label=f"Actual {v2}", color='black', lw=1.5, alpha=0.6)
-                    ax_fit.plot(time_axis, pred_restricted, label=f"Univariate AR (Uses past {v2} only)", color='red', linestyle='dashed', alpha=0.7)
-                    ax_fit.plot(time_axis, pred_unrestricted, label=f"Bivariate AR (Uses past {v2} & {v1})", color='dodgerblue', linestyle='dotted', lw=2)
-
-                    ax_fit.set_xlabel("Time")
-                    ax_fit.set_ylabel(v2)
-                    ax_fit.set_title(f"Granger Linear Fits at Lag {max_lag}")
-                    ax_fit.legend()
-                    ax_fit.grid(True, linestyle='--', alpha=0.5)
-                    st.pyplot(fig_fit)
-                    plt.close()
-
-                    fig_gc, ax_gc = plt.subplots(figsize=(8, 4))
-                    lags = np.arange(1, max_lag + 1)
-                    ax_gc.plot(lags, p_values_12, marker='o', color='C1', label=f'{v1} Granger-causes {v2}')
-                    ax_gc.plot(lags, p_values_21, marker='s', color='C0', label=f'{v2} Granger-causes {v1}')
-                    ax_gc.axhline(y=0.05, color='r', linestyle='--', label='α = 0.05 Significance Threshold')
-                    ax_gc.set_xlabel("Lag Step")
-                    ax_gc.set_ylabel("p-value")
-                    ax_gc.set_title(f"Granger Causality Significance vs. Lags (Up to Lag {max_lag})")
-                    ax_gc.set_ylim([-0.05, 1.05])
-                    ax_gc.legend()
-                    ax_gc.grid(True, linestyle='--', alpha=0.5)
-                    st.pyplot(fig_gc)
-                    plt.close()
-
-                except Exception as e:
-                    st.error(f"Could not compute Granger Causality (likely due to data alignment/stationarity limitations): {e}")
+                        fig_gc, ax_gc = plt.subplots(figsize=(8, 4))
+                        lags = np.arange(1, max_lag + 1)
+                        ax_gc.plot(lags, p_values_12, marker='o', color='C1', label=f'{v1} Granger-causes {v2}')
+                        ax_gc.plot(lags, p_values_21, marker='s', color='C0', label=f'{v2} Granger-causes {v1}')
+                        ax_gc.axhline(y=0.05, color='r', linestyle='--', label='α = 0.05 Significance Threshold')
+                        ax_gc.set_xlabel("Lag Step")
+                        ax_gc.set_ylabel("p-value")
+                        ax_gc.set_title(f"Granger Causality Significance vs. Lags ({v1} & {v2})")
+                        ax_gc.set_ylim([-0.05, 1.05])
+                        ax_gc.legend()
+                        ax_gc.grid(True, linestyle='--', alpha=0.5)
+                        st.pyplot(fig_gc)
+                        plt.close()
+                    except Exception as e:
+                        st.warning(f"Could not compute Granger Causality for {v1} & {v2}: {e}")
 
 # ==========================================
 # TAB 2: COUPLED LOGISTIC MAP
@@ -510,13 +430,10 @@ with tab2:
         st.pyplot(fig2_m)
 
     st.subheader("Information Theory Metrics")
-    mi_vals_map = []
-    te_x_y_vals = []
-    te_y_x_vals = []
-    x_data_map = df_map['X'].values
-    y_data_map = df_map['Y'].values
+    mi_vals_map, te_x_y_vals, te_y_x_vals = [], [], []
+    x_data_map, y_data_map = df_map['X'].values, df_map['Y'].values
 
-    with st.spinner(f"Calculating Information Theory metrics over bin settings {bin_steps}..."):
+    with st.spinner(f"Calculating Information Theory metrics..."):
         for b in bin_steps:
             mi_vals_map.append(calc_mutual_information(x_data_map, y_data_map, bins=b))
             te_x_y_vals.append(calc_transfer_entropy(x_data_map, y_data_map, lag=1, bins=b))
@@ -555,7 +472,7 @@ with tab2:
             ax3_m.grid(True, linestyle='--', alpha=0.7)
             ax3_m.set_ylim([-0.1, 1.1])
             st.pyplot(fig3_m)
-
+            
             st.markdown("---")
             st.subheader("Prediction Performance")
             col3_m, col4_m = st.columns(2)
@@ -590,8 +507,8 @@ with tab2:
                 ax_yx_m.scatter(simplex_YX_m['Observations'], simplex_YX_m['Predictions'], alpha=0.4, edgecolors='none', color='teal')
                 ax_yx_m.plot([simplex_YX_m['Observations'].min(), simplex_YX_m['Observations'].max()],
                               [simplex_YX_m['Observations'].min(), simplex_YX_m['Observations'].max()], 'r--', lw=2)
-                ax_xy_m.set_xlabel("Observed Y")
-                ax_xy_m.set_ylabel("Predicted Y from M_X")
-                ax_xy_m.set_title(f"Cross-mapping Performance\nρ = {corr_yx_m:.3f}")
+                ax_yx_m.set_xlabel("Observed Y")
+                ax_yx_m.set_ylabel("Predicted Y from M_X")
+                ax_yx_m.set_title(f"Cross-mapping Performance\nρ = {corr_yx_m:.3f}")
                 st.pyplot(fig_yx_m)
                 plt.close()
