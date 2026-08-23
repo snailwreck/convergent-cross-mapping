@@ -183,8 +183,8 @@ def render_pairwise_analysis(dfs_window, df_base_win, pairs, window_len, max_lib
 
 # --- Sidebar UI ---
 st.sidebar.title("Configuration")
-num_points = st.sidebar.slider("Data Points", 500, 5000, 2000, step=100)
-max_lib_size = st.sidebar.slider("Max Library Size", 100, min(500, num_points-50), step=50)
+num_points = st.sidebar.slider("Data Points", 500, 10000, 2000, step=100)
+max_lib_size = st.sidebar.slider("Max Library Size", 100, num_points-50, step=50)
 lib_step = st.sidebar.number_input("Library Step", 10, 200, 20)
 max_lag = st.sidebar.slider("Max Lag for Granger", 1, 30, 10)
 bin_steps = [2, 4, 8, 16]
