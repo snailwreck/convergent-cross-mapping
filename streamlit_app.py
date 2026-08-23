@@ -134,7 +134,10 @@ def render_pairwise_analysis(dfs_window, df_base_win, pairs, window_len, max_lib
 
     st.markdown("---")
     st.header("Causality Analysis")
-    if st.button(f"Run CCM & Granger", key=f"btn_{pairs[0]}_{E_dim}_{key_suffix}"):
+    
+    # Tooltip added to the execution button
+    if st.button(f"Run CCM & Granger", key=f"btn_{pairs[0]}_{E_dim}_{key_suffix}", 
+                 help="Executes the computationally intensive Convergent Cross Mapping and Granger Causality routines for these variables."):
         with st.spinner("Processing Causality Metrics..."):
             for v1, v2 in pairs:
                 st.subheader(f"Coupling Results: {v1} & {v2}")
@@ -187,19 +190,42 @@ def render_pairwise_analysis(dfs_window, df_base_win, pairs, window_len, max_lib
                 except Exception as e:
                     st.warning(f"Could not compute Granger Causality for {v1} & {v2}: {e}")
 
-# --- Sidebar UI ---
+# --- Sidebar UI with Tooltips ---
 st.sidebar.title("Configuration")
-num_points = st.sidebar.slider("Data Points", 500, 5000, 2000, step=100)
-max_lib_size = st.sidebar.slider("Max Library Size", 100, min(500, num_points-50), step=50)
-lib_step = st.sidebar.number_input("Library Step", 10, 200, 20)
-max_lag = st.sidebar.slider("Max Lag for Granger", 1, 30, 10)
+num_points = st.sidebar.slider("Data Points", 500, 5000, 2000, step=100, 
+                               help="Total number of discrete time steps generated for the modeled system.")
+max_lib_size = st.sidebar.slider("Max Library Size", 100, min(500, num_points-50), step=50, 
+                                 help="Maximum number of historical observations used to reconstruct the state space manifold in CCM. Larger libraries improve prediction if causality exists.")
+lib_step = st.sidebar.number_input("Library Step", 10, 200, 20, 
+                                   help="The increment by which the library size increases to measure convergence in cross-mapping.")
+max_lag = st.sidebar.slider("Max Lag", 1, 30, 10, 
+                            help="The maximum number of past time steps (lags) evaluated by the autoregressive model to determine Granger causality.")
 bin_steps = [2, 4, 8, 16]
-noise = st.sidebar.slider("Noise Level (Tabs 3/4)", 0.0, 1.0, 0.1)
+noise = st.sidebar.slider("Noise Level (Sinusoids)", 0.0, 1.0, 0.1, 
+                          help="The amount of Gaussian noise added to the sinusoid signals.")
 
 # --- Main App ---
 st.title("CCM & Information Theory Explorer")
-tab1, tab2, tab3, tab4 = st.tabs(["Lorenz", "Logistic", "Phase Shifts", "Freq Shifts"])
+tab0, tab1, tab2, tab3, tab4 = st.tabs(["Theory & Explanations", "Lorenz", "Logistic", "Phase Shifts", "Freq Shifts"])
 pairs_xyz = [("X", "Y"), ("X", "Z"), ("Y", "Z")]
+
+with tab0:
+    st.header("The Four Dynamical Systems")
+    st.markdown("""
+    * **Lorenz System**: The Lorenz system is a continuous-time, three-dimensional nonlinear deterministic system. It exhibits chaotic behavior characterized by the famous "butterfly" attractor shape.
+    * **Coupled Logistic Map**: The coupled logistic map is a discrete-time demographic model used to simulate chaotic population dynamics and featured in the 2012 Sugihara paper in Science analyzing CCM. As a coupled system, the system is characterized by two parameters that control the strength of each variable on the other.
+    * **Phase-Shifted Sinusoids**: This is a periodic sinusoidal system with variables shifted in time, illustrating an environment where variables are correlated but not causally related.
+    * **Frequency-Shifted Sinusoids**: This is a periodic sinusoidal system with variables in different frequencies, illustrating an environment where variables are correlated but not causally related.
+    """)
+    
+    st.markdown("---")
+    st.header("The Four Analytical Approaches")
+    st.markdown("""
+    * **Pearson Correlation**: A symmetric measure of the linear relationship between two variables.
+    * **Information-theoretical Measures**: Mutual information is a symmetric measure of the statistical dependence between two variables without assuming linearity. Transfer entropy extends this to measure the directed exchange of information over time, identifying which variable has more predictive power than the other.
+    * **Granger Causality**: A statistical hypothesis test asserting that if a signal $X$ causes $Y$, past values of $X$ should help forecast $Y$ better than using past values of $Y$ alone, assuming the underlying relationships are linear.
+    * **Convergent Cross-Mapping (CCM)**: A methodology developed by Sugihara et al. designed specifically for non-linear, dynamic environments where Granger causality fails. It relies on the theoretical underpinnings of Takens' embedding theorem to reconstruct state spaces to see if the historical states of a variable $X$ can reliably estimate the historical states of another variable $Y$. If $X$ controls $Y$, the history of $Y$ cross-maps (i.e. predicts) the states of $X$.
+    """)
 
 with tab1:
     st.header("Lorenz Attractor")
@@ -213,11 +239,11 @@ with tab1:
     
     col_p1, col_p2, col_p3 = st.columns(3)
     with col_p1:
-        sigma_val = st.slider(r"$\sigma$ (Sigma)", 1.0, 20.0, 10.0, step=0.1)
+        sigma_val = st.slider(r"$\sigma$ (Sigma)", 1.0, 20.0, 10.0, step=0.1, help="Prandtl number: controls the rate of heat transfer.")
     with col_p2:
-        rho_val = st.slider(r"$\rho$ (Rho)", 10.0, 50.0, 28.0, step=0.5)
+        rho_val = st.slider(r"$\rho$ (Rho)", 10.0, 50.0, 28.0, step=0.5, help="Rayleigh number: controls the strength of convection.")
     with col_p3:
-        beta_val = st.slider(r"$\beta$ (Beta)", 0.5, 5.0, 2.666, step=0.001)
+        beta_val = st.slider(r"$\beta$ (Beta)", 0.5, 5.0, 2.666, step=0.001, help="Physical proportion of the convection space.")
 
     dfs1 = generate_lorenz_ensemble(sigma_val, rho_val, beta_val, 40.0, num_points)
     df_base1 = dfs1[0]
@@ -243,9 +269,9 @@ with tab1:
         avg_loops_per_lobe = num_cycles
 
     col_d1, col_d2, col_d3 = st.columns(3)
-    col_d1.metric("Total Cycles (Loops)", f"{num_cycles}")
-    col_d2.metric("Avg. Cycle Time (Steps)", f"{avg_cycle_steps:.1f}")
-    col_d3.metric("Avg. Loops Before Switch", f"{avg_loops_per_lobe:.2f}")
+    col_d1.metric("Total Cycles (Loops)", f"{num_cycles}", help="Number of distinct orbits around either of the attractor's lobes.")
+    col_d2.metric("Avg. Cycle Time (Steps)", f"{avg_cycle_steps:.1f}", help="Average number of discrete time steps to complete one orbit.")
+    col_d3.metric("Avg. Loops Before Switch", f"{avg_loops_per_lobe:.2f}", help="Mean consecutive orbits on a single side before crossing to the opposite lobe.")
 
     fig_hist, axes = plt.subplots(1, 3, figsize=(15, 4))
     for i, var in enumerate(['X', 'Y', 'Z']):
@@ -270,13 +296,13 @@ with tab2:
     
     col_l1, col_l2, col_l3, col_l4 = st.columns(4)
     with col_l1:
-        rx_val = st.slider(r"$r_x$", 3.0, 4.0, 3.8, step=0.01)
+        rx_val = st.slider(r"$r_x$", 3.0, 4.0, 3.8, step=0.01, help="Growth rate for population X.")
     with col_l2:
-        ry_val = st.slider(r"$r_y$", 3.0, 4.0, 3.5, step=0.01)
+        ry_val = st.slider(r"$r_y$", 3.0, 4.0, 3.5, step=0.01, help="Growth rate for population Y.")
     with col_l3:
-        bxy_val = st.slider(r"$\beta_{xy}$ (Y->X)", 0.0, 0.5, 0.02, step=0.01)
+        bxy_val = st.slider(r"$\beta_{xy}$ (Y->X)", 0.0, 0.5, 0.02, step=0.01, help="Strength of the influence Y has on X's growth.")
     with col_l4:
-        byx_val = st.slider(r"$\beta_{yx}$ (X->Y)", 0.0, 0.5, 0.10, step=0.01)
+        byx_val = st.slider(r"$\beta_{yx}$ (X->Y)", 0.0, 0.5, 0.10, step=0.01, help="Strength of the influence X has on Y's growth.")
 
     dfs2 = generate_logistic_data(rx_val, ry_val, bxy_val, byx_val, num_points)
     render_pairwise_analysis(dfs2, dfs2[0], [("X", "Y")], num_points, max_lib_size, lib_step, max_lag, bin_steps, E_dim=2, key_suffix="logistic")
@@ -293,9 +319,9 @@ with tab3:
     
     col_p1, col_p2 = st.columns(2)
     with col_p1:
-        py = st.slider(r"$\phi_y$ Phase Offset Y (Radians)", 0.0, 2*np.pi, np.pi/4)
+        py = st.slider(r"$\phi_y$ Phase Offset Y (Radians)", 0.0, 2*np.pi, np.pi/4, help="Amount to shift the Y sine wave horizontally.")
     with col_p2:
-        pz = st.slider(r"$\phi_z$ Phase Offset Z (Radians)", 0.0, 2*np.pi, np.pi/2)
+        pz = st.slider(r"$\phi_z$ Phase Offset Z (Radians)", 0.0, 2*np.pi, np.pi/2, help="Amount to shift the Z sine wave horizontally.")
         
     dfs3 = generate_phase_sinusoids(num_points, noise, py, pz)
     render_pairwise_analysis(dfs3, dfs3[0], pairs_xyz, num_points, max_lib_size, lib_step, max_lag, bin_steps, E_dim=2, key_suffix="phase")
@@ -312,11 +338,11 @@ with tab4:
     
     col_f1, col_f2, col_f3 = st.columns(3)
     with col_f1:
-        fx = st.slider(r"$f_x$ Frequency Multiplier X", 0.5, 3.0, 1.0)
+        fx = st.slider(r"$f_x$ Frequency Multiplier X", 0.5, 3.0, 1.0, help="Cycles per time unit for X.")
     with col_f2:
-        fy = st.slider(r"$f_y$ Frequency Multiplier Y", 0.5, 3.0, 1.5)
+        fy = st.slider(r"$f_y$ Frequency Multiplier Y", 0.5, 3.0, 1.5, help="Cycles per time unit for Y.")
     with col_f3:
-        fz = st.slider(r"$f_z$ Frequency Multiplier Z", 0.5, 3.0, 2.0)
+        fz = st.slider(r"$f_z$ Frequency Multiplier Z", 0.5, 3.0, 2.0, help="Cycles per time unit for Z.")
         
     dfs4 = generate_frequency_sinusoids(num_points, noise, fx, fy, fz)
     render_pairwise_analysis(dfs4, dfs4[0], pairs_xyz, num_points, max_lib_size, lib_step, max_lag, bin_steps, E_dim=2, key_suffix="freq")
