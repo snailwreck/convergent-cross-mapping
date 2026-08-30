@@ -175,8 +175,8 @@ def render_pairwise_analysis(dfs_window, df_base_win, pairs, window_len, max_lib
                     st.pyplot(fig21)
                     
                 try:
-                    gc_12 = grangercausalitytests(df_base_win[[v2, v1]], maxlag=max_lag, verbose=False)
-                    gc_21 = grangercausalitytests(df_base_win[[v1, v2]], maxlag=max_lag, verbose=False)
+                    gc_12 = grangercausalitytests(df_base_win[[v2, v1]], maxlag=max_lag)
+                    gc_21 = grangercausalitytests(df_base_win[[v1, v2]], maxlag=max_lag)
                     fig_gc, ax_gc = plt.subplots(figsize=(8, 4))
                     ax_gc.plot(range(1, max_lag+1), [gc_12[l][0]['ssr_ftest'][1] for l in range(1, max_lag+1)], marker='o', label=f'{v1} Granger-causes {v2}')
                     ax_gc.plot(range(1, max_lag+1), [gc_21[l][0]['ssr_ftest'][1] for l in range(1, max_lag+1)], marker='s', label=f'{v2} Granger-causes {v1}')
