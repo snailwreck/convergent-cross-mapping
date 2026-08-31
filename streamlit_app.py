@@ -307,7 +307,7 @@ with tab1:
     tau = st.slider(r"Time Delay ($\tau$)", 1, 50, 15, help="Time lag used for Takens' state space reconstruction.")
     
     # Generate delayed vectors for 3D embedding
-    x_vals = df_base1['X'].values
+    x_vals = df_base1['Y'].values
     x_t = x_vals[:-2*tau]
     x_t_tau = x_vals[tau:-tau]
     x_t_2tau = x_vals[2*tau:]
