@@ -318,7 +318,7 @@ with tab1:
     ax_embed.plot(x_t, x_t_tau, x_t_2tau, lw=0.7, color='purple')
     ax_embed.set_xlabel('X(t)')
     ax_embed.set_ylabel(f'X(t + {tau})')
-    ax_embed.set_zlabel(f'X(t + 2{tau})')
+    ax_embed.set_zlabel(f'X(t + {2*tau})')
     ax_embed.set_title("3D Delay Reconstructed Phase Space from X")
     st.pyplot(fig_embed)
     plt.close(fig_embed)
