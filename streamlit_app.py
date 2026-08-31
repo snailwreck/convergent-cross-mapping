@@ -302,27 +302,6 @@ with tab1:
     st.pyplot(fig_hist)
     plt.close()
 
-    st.markdown("---")
-    st.subheader("Delay Embedding Reconstruction (X-Variable)")
-    tau = st.slider(r"Time Delay ($\tau$)", 1, 50, 15, help="Time lag used for Takens' state space reconstruction.")
-    
-    # Generate delayed vectors for 3D embedding
-    x_vals = df_base1['Y'].values
-    x_t = x_vals[:-2*tau]
-    x_t_tau = x_vals[tau:-tau]
-    x_t_2tau = x_vals[2*tau:]
-    
-    # Plot the reconstructed attractor
-    fig_embed = plt.figure(figsize=(8, 6))
-    ax_embed = fig_embed.add_subplot(111, projection='3d')
-    ax_embed.plot(x_t, x_t_tau, x_t_2tau, lw=1, color='purple')
-    ax_embed.set_xlabel('Y(t)')
-    ax_embed.set_ylabel(f'Y(t + {tau})')
-    ax_embed.set_zlabel(f'Y(t + {2*tau})')
-    ax_embed.set_title("Delay Reconstructed Phase Space from Y")
-    st.pyplot(fig_embed)
-    plt.close(fig_embed)
-    
     render_pairwise_analysis(dfs1, df_base1, pairs_xyz, num_points, max_lib_size, lib_step, max_lag, bin_steps, E_dim=3, key_suffix="lorenz")
 
 with tab2:
